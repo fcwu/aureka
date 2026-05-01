@@ -1,7 +1,28 @@
-qwen-asr>=0.1.0
+# ASR
+thestage-speechkit>=0.1.0
+faster-whisper>=1.0.0
+
+# LLM / VLM
 openai>=1.0.0
+
+# TTS
+kokoro>=0.9.0
 sounddevice>=0.4.6
 soundfile>=0.12.1
-torch>=2.1.0
+
+# Daemon
+fastapi>=0.111.0
+uvicorn>=0.30.0
+websockets>=12.0
+
+# Voice Input client
+pynput>=1.7.0
+pystray>=0.19.0
+pyperclip>=1.8.0
+pyautogui>=0.9.0
+
+# Batch pipeline
 ffmpeg-python>=0.2.0
 Pillow>=10.0.0
+torch>=2.1.0
+numpy>=1.24.0

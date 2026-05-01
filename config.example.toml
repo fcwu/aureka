@@ -1,0 +1,45 @@
+# Aureka 設定檔範例
+# 複製為 config.toml 並依環境修改
+
+# ── LLM ──────────────────────────────────────────────────────────────────────
+[llm]
+# OpenAI-compatible 端點（LM Studio 預設；Ollama 用 http://127.0.0.1:11434/v1）
+base_url = "http://127.0.0.1:1234/v1"
+# LM Studio 任意值；Ollama 用 "ollama"
+api_key  = "lm-studio"
+# 指定模型 ID，或 "auto"（使用端點第一個可用模型）
+model    = "auto"
+
+# ── VLM（視覺模型）────────────────────────────────────────────────────────────
+[vlm]
+base_url = "http://127.0.0.1:1234/v1"
+api_key  = "lm-studio"
+# 必須載入支援 vision 的模型，否則啟動時 fatal error
+model    = "auto"
+
+# ── TTS ──────────────────────────────────────────────────────────────────────
+[tts]
+# Kokoro 語音 ID（中文：zf_xiaobei、zm_yunxi；英文：af_heart 等）
+voice     = "zf_xiaobei"
+# 語言代碼（z = 中文；a = 英文/美式）
+lang_code = "z"
+# 計算裝置：auto / cuda / mps / cpu
+device    = "auto"
+
+# ── Daemon ────────────────────────────────────────────────────────────────────
+[daemon]
+host     = "127.0.0.1"
+port     = 7777
+pid_file = "/tmp/aureka-daemon.pid"
+log_file = "/tmp/aureka-daemon.log"
+
+# ── Hotkey ────────────────────────────────────────────────────────────────────
+[hotkey]
+# 觸發熱鍵（pynput 格式）
+trigger    = "<ctrl>+<alt>+space"
+# 錄音模式：hold-to-record / toggle / vad
+mode       = "hold-to-record"
+# AI 後處理模式：transcribe / refine / translate
+input_mode = "refine"
+# 語音輸入語言代碼
+lang       = "zh"

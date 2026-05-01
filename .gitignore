@@ -11,3 +11,5 @@ build/
 output/
 tmp/
 .env
+.claude/settings.local.json
+tests/fixtures/
