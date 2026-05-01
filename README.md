@@ -13,20 +13,32 @@
 
 ## 安裝
 
-### 1. 建立虛擬環境
+### PyPI（推薦）
 
 ```bash
-python -m venv .venv && source .venv/bin/activate
+# 基本安裝（daemon + LLM client）
+pip install aureka
+
+# 按需加裝功能模組
+pip install "aureka[asr]"           # ASR（faster-whisper）
+pip install "aureka[tts]"           # TTS（Kokoro）
+pip install "aureka[batch]"         # 批次流水線（需另裝 ffmpeg，見下方）
+pip install "aureka[voice]"         # 語音輸入 client（pynput/pystray）
+pip install "aureka[all]"           # 以上全部
 ```
 
-### 2. 安裝相依套件
+> **注意**：PyTorch 需依平台單獨安裝（見下方），不包含在 extras 中。
+
+### 從原始碼安裝
 
 ```bash
-pip install -r requirements.txt
+git clone https://github.com/fcwu/aureka
+cd aureka
+pip install -e ".[all]"
 pip install -r requirements-dev.txt   # 測試用
 ```
 
-PyTorch 依平台選擇：
+### PyTorch（依平台）
 
 ```bash
 # NVIDIA CUDA
@@ -35,17 +47,28 @@ pip install torch --index-url https://download.pytorch.org/whl/cu121
 # AMD ROCm（native Linux）
 pip install torch --index-url https://download.pytorch.org/whl/rocm6.1
 
-# Apple Silicon / CPU
+# Apple Silicon / CPU only
 pip install torch
 ```
 
-### 3. 安裝系統套件
+### ffmpeg（批次處理必要）
 
 ```bash
-sudo apt install ffmpeg          # Ubuntu/Debian（批次處理必要）
+# Ubuntu / Debian
+sudo apt install ffmpeg
+
+# Fedora / RHEL
+sudo dnf install ffmpeg
+
+# macOS
+brew install ffmpeg
+
+# Windows
+winget install ffmpeg
+# 或：choco install ffmpeg
 ```
 
-### 4. 建立設定檔
+### 設定檔
 
 ```bash
 cp config.example.toml config.toml

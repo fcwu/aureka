@@ -1,0 +1,98 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "aureka"
+version = "0.1.0"
+description = "Local AI voice processing platform: audio/video → knowledge base, global voice input"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.11"
+authors = [{ name = "Doro Wu", email = "fcwu.tw@gmail.com" }]
+keywords = ["asr", "tts", "voice", "whisper", "kokoro", "llm", "knowledge-base"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Multimedia :: Sound/Audio :: Speech",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+# Core deps: daemon API + LLM client only; heavy ML deps are extras
+dependencies = [
+    "openai>=1.0.0",
+    "fastapi>=0.111.0",
+    "uvicorn[standard]>=0.30.0",
+    "websockets>=12.0",
+    "numpy>=1.24.0",
+    "soundfile>=0.12.1",
+]
+
+[project.optional-dependencies]
+# ASR backends (install one; torch must be installed separately for GPU)
+asr = [
+    "faster-whisper>=1.0.0",
+]
+asr-thewhisper = [
+    "thestage-speechkit>=0.1.0",
+]
+
+# TTS
+tts = [
+    "kokoro>=0.9.0",
+    "sounddevice>=0.4.6",
+]
+
+# Batch pipeline (requires system ffmpeg)
+batch = [
+    "ffmpeg-python>=0.2.0",
+    "Pillow>=10.0.0",
+]
+
+# Voice input client (Linux X11 / macOS / Windows)
+voice = [
+    "pynput>=1.7.0",
+    "pystray>=0.19.0",
+    "pyperclip>=1.8.0",
+    "pyautogui>=0.9.0",
+]
+
+# Full install (torch installed separately for GPU)
+all = [
+    "aureka[asr,tts,batch,voice]",
+]
+
+# Development / testing
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "pytest-cov>=4.1.0",
+    "httpx>=0.27.0",
+    "websockets>=12.0",
+    "uvicorn>=0.30.0",
+    "fastapi>=0.111.0",
+]
+
+[project.scripts]
+aureka = "aureka.__main__:main"
+
+[project.urls]
+Homepage = "https://github.com/fcwu/aureka"
+Repository = "https://github.com/fcwu/aureka"
+Issues = "https://github.com/fcwu/aureka/issues"
+
+[tool.setuptools.packages.find]
+include = ["aureka*"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+markers = [
+    "unit: fast unit tests, no external deps",
+    "integration: tests requiring mock server or fixtures",
+    "e2e: end-to-end tests requiring daemon process",
+]
