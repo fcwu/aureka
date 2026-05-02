@@ -41,7 +41,7 @@ def test_pipeline_audio_only(tmp_path, silence_wav):
         check_vlm=False,
     )
     assert out.exists()
-    content = out.read_text()
+    content = out.read_text(encoding="utf-8")
     assert "---" in content
     assert "## 摘要" in content
     assert "## 原始轉錄" in content

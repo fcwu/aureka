@@ -91,6 +91,7 @@ include = ["aureka*"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
 markers = [
     "unit: fast unit tests, no external deps",
     "integration: tests requiring mock server or fixtures",
