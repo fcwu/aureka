@@ -29,7 +29,7 @@
 - **THEN** 偵測到靜音超過閾值時自動停止錄音
 
 ### Requirement: AI 後處理模式
-系統 SHALL 支援 `transcribe`、`refine`、`translate` 三種 AI 後處理模式。在 streaming 模式下，partial transcripts（每個 VAD segment 的 ASR 結果）會即時 inject 到游標，最終的 LLM-refined 文字（refine/translate 模式）會 replace 整段累積長度。
+系統 SHALL 支援 `transcribe`、`refine`、`translate` 三種 AI 後處理模式。Streaming 模式下，partial transcripts 是否 inject 到游標由 mode 決定：`transcribe` 模式 inject、`refine`/`translate` 模式不 inject（避免 raw 文字污染使用者草稿、再被 LLM-refined 文字覆寫造成 flicker）。最終的 LLM-refined 文字（refine/translate 模式）一次性 inject 到游標。
 
 #### Scenario: transcribe 模式注入（buffer 模式，向下相容）
 - **WHEN** 模式為 `transcribe` 且收到 `transcript final: true`
@@ -41,15 +41,15 @@
 
 #### Scenario: refine 模式串流替換（streaming 與 buffer 共用）
 - **WHEN** 模式為 `refine` 且收到 `refined` token
-- **THEN** 系統先注入草稿，收到後續 token 時替換（退格 + 重新注入）直到 `final: true`
+- **THEN** 系統注入 refined 文字（首個 token 為純 inject，後續以 backspace+retype 替換）直到 `final: true`
 
-#### Scenario: refine 模式 streaming partial inject
-- **WHEN** 模式為 `refine` 且 streaming 啟用，收到 partial transcript（`is_partial: true`）
-- **THEN** 系統 append inject partial 文字到游標（給使用者「系統有在聽」的回饋），追蹤 `injected_len` 累計；後續收到 `refined` 事件時用 `replace_text(injected_len, refined_text)` 蓋寫整段
+#### Scenario: refine / translate 模式 streaming partial 不 inject
+- **WHEN** 模式為 `refine` 或 `translate` 且 streaming 啟用，收到 partial transcript（`is_partial: true`）
+- **THEN** 系統 **不** inject partial 文字到游標，只在 stderr 印出 `[aureka] partial: <text>` 作為命令列進度回饋；待收到 `refined final: true` 才一次性 inject 最終文字
 
 #### Scenario: translate 模式
 - **WHEN** 模式為 `translate` 且指定目標語言
-- **THEN** 收到 `refined final: true` 後一次性注入翻譯結果（streaming 模式下若先有 partial transcript inject，則最終 refined 來時 replace 整段）
+- **THEN** 收到 `refined final: true` 後一次性注入翻譯結果（streaming 模式下不 inject partial）
 
 ### Requirement: 文字注入
 系統 SHALL 將轉錄/修飾後的文字注入目前游標所在位置，支援 macOS、Windows、Linux X11。

@@ -65,12 +65,16 @@ async def _voice_session(
             if mtype == "transcript":
                 seg_text = msg.get("text", "")
                 transcript_buf += seg_text
-                # Streaming partial: inject immediately so user sees progress.
-                # `is_partial` is the streaming-mode marker; falling back to the
-                # non-streaming `final` semantics below for buffer mode.
                 if msg.get("is_partial"):
-                    injector.inject_text(seg_text)
-                    injected_len += len(seg_text)
+                    if mode == "transcribe":
+                        # No LLM refine pass; partial IS the final text → inject.
+                        injector.inject_text(seg_text)
+                        injected_len += len(seg_text)
+                    else:
+                        # refine / translate: avoid polluting the user's draft
+                        # with raw text that will get rewritten. Show progress
+                        # in the terminal instead.
+                        print(f"[aureka] partial: {seg_text}", file=sys.stderr)
                 elif msg.get("final"):
                     print(f"[aureka] transcript: {transcript_buf}", file=sys.stderr)
                     if mode == "transcribe":

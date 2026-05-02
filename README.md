@@ -86,7 +86,11 @@ cp config.example.toml config.toml
 
 ### 即時轉錄（streaming）
 
-`aureka type` 預設啟用 streaming：講話過程中游標就會開始出現轉錄文字（每停頓 600ms 一段），不必等講完才看到結果。最終 LLM-refined 文字會 replace 整段累積的 raw 文字。
+`aureka type` 預設啟用 streaming：daemon 端用 silero-vad 切句，每段 close 立刻轉錄並推回 client。
+
+行為依 mode 而異：
+- **`transcribe` 模式**（純轉錄）：partial 文字直接打到游標，邊講邊出現
+- **`refine` / `translate` 模式**：partial 文字**不**打到游標（避免你的草稿先被 raw 字污染、再被 LLM 改寫造成 flicker），只在 terminal 印 `[aureka] partial: ...` 當進度回饋；最終 LLM-refined 文字一次寫入草稿
 
 要退回舊行為（錄完才轉）：
 
