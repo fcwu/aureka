@@ -155,8 +155,24 @@ _HTML = """\
   async function save() {
     setStatus('Saving…');
     const r = await window.pywebview.api.save_config(collect());
-    if (r && r.ok) setStatus('Saved to ' + r.path, 'ok');
-    else setStatus('Error: ' + (r && r.error || 'unknown'), 'err');
+    if (!r || !r.ok) {
+      setStatus('Error: ' + (r && r.error || 'unknown'), 'err');
+      return;
+    }
+    let msg = 'Saved';
+    const rl = r.reload;
+    if (rl && rl.reached) {
+      if (rl.ok && (rl.needs_restart || []).length === 0) {
+        msg += ' · daemon reloaded';
+      } else if (rl.needs_restart && rl.needs_restart.length) {
+        msg += ' · daemon restart needed for: ' + rl.needs_restart.join(', ');
+      } else if (!rl.ok) {
+        msg += ' · reload failed: ' + (rl.error || 'unknown');
+      }
+    } else {
+      msg += ' · daemon not running';
+    }
+    setStatus(msg, 'ok');
   }
 
   window.addEventListener('pywebviewready', async () => {
@@ -180,6 +196,31 @@ def _config_to_dict(cfg: Config) -> dict:
         v = getattr(cfg, f.name)
         out[f.name] = asdict(v) if is_dataclass(v) else v
     return out
+
+
+def _try_reload_daemon() -> dict:
+    """POST /reload to a running daemon. Returns a small status dict;
+    'skipped' if daemon isn't reachable (not an error)."""
+    import json
+    import socket
+    import urllib.request
+    cfg = load_config(_config_path())
+    host, port = cfg.daemon.host, cfg.daemon.port
+    try:
+        s = socket.create_connection((host, port), timeout=0.5)
+        s.close()
+    except OSError:
+        return {"reached": False, "reason": "daemon not running"}
+    try:
+        req = urllib.request.Request(
+            f"http://{host}:{port}/reload", method="POST",
+            headers={"Content-Type": "application/json"},
+            data=b"{}",
+        )
+        with urllib.request.urlopen(req, timeout=3) as resp:
+            return {"reached": True, **json.loads(resp.read().decode("utf-8"))}
+    except Exception as e:
+        return {"reached": True, "ok": False, "error": f"{type(e).__name__}: {e}"}
 
 
 def _coerce(value, current):
@@ -233,7 +274,7 @@ class Api:
 
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(tomlkit.dumps(doc))
-            return {"ok": True, "path": str(path)}
+            return {"ok": True, "path": str(path), "reload": _try_reload_daemon()}
         except Exception as e:
             return {"ok": False, "error": f"{type(e).__name__}: {e}"}
 
