@@ -44,30 +44,42 @@ def strip_markdown(text: str) -> str:
     return text.strip()
 
 
-def speak(text: str, output_path: str | None = None) -> None:
-    import soundfile as sf
+def synthesize(text: str, speed: float | None = None):
+    """Run Kokoro on `text`, return (numpy float32 array, sample_rate) or (None, sr).
+
+    speed: 1.0 = normal; <1 slower, >1 faster. None → use config.tts.speed.
+    """
+    import numpy as np
     pipeline = load_tts()
     cfg = get_config()
+    spd = cfg.tts.speed if speed is None else speed
     collected = []
-    for _, _, audio in pipeline(text, voice=cfg.tts.voice):
+    for _, _, audio in pipeline(text, voice=cfg.tts.voice, speed=spd):
         collected.append(audio)
-
     if not collected:
+        return None, 24000
+    return np.concatenate(collected), 24000
+
+
+def play_or_save(audio, sample_rate: int, output_path: str | None) -> None:
+    if audio is None:
         return
-
-    import numpy as np
-    full_audio = np.concatenate(collected)
-
     if output_path:
-        sf.write(output_path, full_audio, 24000)
+        import soundfile as sf
+        sf.write(output_path, audio, sample_rate)
     else:
         import sounddevice as sd
-        sd.play(full_audio, 24000)
+        sd.play(audio, sample_rate)
         sd.wait()
 
 
-def speak_file(path: str, output_path: str | None = None) -> None:
+def speak(text: str, output_path: str | None = None, speed: float | None = None) -> None:
+    audio, sr = synthesize(text, speed=speed)
+    play_or_save(audio, sr, output_path)
+
+
+def speak_file(path: str, output_path: str | None = None, speed: float | None = None) -> None:
     text = open(path).read()
     text = strip_markdown(text)
     if text:
-        speak(text, output_path)
+        speak(text, output_path, speed=speed)

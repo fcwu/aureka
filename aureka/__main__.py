@@ -36,14 +36,58 @@ def cmd_process(args):
 
 def cmd_speak(args):
     if args.file:
-        from aureka.tts import speak_file
-        speak_file(args.file, args.output)
+        from aureka.tts import strip_markdown
+        text = strip_markdown(open(args.file).read())
     elif args.text:
-        from aureka.tts import speak
-        speak(args.text, args.output)
+        text = args.text
     else:
         print("Error: provide text or --file", file=sys.stderr)
         sys.exit(1)
+
+    if not text.strip():
+        return
+
+    from aureka.config import get_config
+    cfg = get_config()
+
+    import socket
+    daemon_available = False
+    try:
+        s = socket.create_connection((cfg.daemon.host, cfg.daemon.port), timeout=1)
+        s.close()
+        daemon_available = True
+    except (ConnectionRefusedError, OSError):
+        pass
+
+    if daemon_available:
+        import io
+        import json
+        import urllib.request
+        url = f"http://{cfg.daemon.host}:{cfg.daemon.port}/speak"
+        payload = {"text": text}
+        if args.speed is not None:
+            payload["speed"] = args.speed
+        req = urllib.request.Request(
+            url,
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        with urllib.request.urlopen(req, timeout=600) as resp:
+            wav_bytes = resp.read()
+
+        if args.output:
+            with open(args.output, "wb") as f:
+                f.write(wav_bytes)
+        else:
+            import soundfile as sf
+            import sounddevice as sd
+            data, sr = sf.read(io.BytesIO(wav_bytes))
+            sd.play(data, sr)
+            sd.wait()
+    else:
+        print("[aureka] Daemon not running — loading TTS locally (cold start) ...", file=sys.stderr)
+        from aureka.tts import speak
+        speak(text, args.output, speed=args.speed)
 
 
 def cmd_type(args):
@@ -166,6 +210,8 @@ def main():
     p_speak.add_argument("text", nargs="?", help="Text to speak")
     p_speak.add_argument("--file", metavar="PATH", help="Markdown/text file to read")
     p_speak.add_argument("--output", metavar="PATH", help="Save WAV instead of playing")
+    p_speak.add_argument("--speed", type=float, default=None,
+                         metavar="X", help="Speech rate (1.0 = normal, 1.3 = faster, 0.8 = slower)")
 
     # type
     p_type = sub.add_parser("type", help="Voice input → text injection")

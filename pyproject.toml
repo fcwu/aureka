@@ -42,6 +42,7 @@ asr = [
 # TTS
 tts = [
     "kokoro>=0.9.0",
+    "misaki[zh,en]>=0.9.0",
     "sounddevice>=0.4.6",
 ]
 

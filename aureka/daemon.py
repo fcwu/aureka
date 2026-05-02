@@ -11,7 +11,7 @@ from pathlib import Path
 
 import numpy as np
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 
 from aureka import asr
 from aureka.config import get_config
@@ -34,6 +34,42 @@ app = FastAPI(title="Aureka Daemon", lifespan=_lifespan)
 def health():
     from aureka import __version__
     return {"status": "ok", "version": __version__}
+
+
+_tts_lock = asyncio.Lock()
+_tts_loaded = False
+
+
+async def _ensure_tts():
+    global _tts_loaded
+    async with _tts_lock:
+        if not _tts_loaded:
+            from aureka import tts
+            await asyncio.get_event_loop().run_in_executor(None, tts.load_tts)
+            _tts_loaded = True
+
+
+@app.post("/speak")
+async def speak_endpoint(body: dict):
+    text = body.get("text", "")
+    if not text:
+        return JSONResponse({"error": "missing text"}, status_code=400)
+    speed = body.get("speed")  # None → use config
+
+    await _ensure_tts()
+
+    from aureka import tts
+    audio, sr = await asyncio.get_event_loop().run_in_executor(
+        None, lambda: tts.synthesize(text, speed=speed)
+    )
+    if audio is None:
+        return JSONResponse({"error": "no audio produced"}, status_code=500)
+
+    import io
+    import soundfile as sf
+    buf = io.BytesIO()
+    sf.write(buf, audio, sr, format="WAV")
+    return Response(content=buf.getvalue(), media_type="audio/wav")
 
 
 @app.post("/process")
@@ -92,9 +128,25 @@ async def voice_input(ws: WebSocket):
             from aureka.llm import llm_refine_stream
             transcript = " ".join(transcript_parts)
             accumulated = ""
-            async for token in llm_refine_stream(transcript, mode=mode, lang=lang):
-                accumulated += token
-                await ws.send_json({"type": "refined", "text": accumulated, "final": False})
+            llm_failed = False
+            try:
+                async for token in llm_refine_stream(transcript, mode=mode, lang=lang):
+                    accumulated += token
+                    await ws.send_json({"type": "refined", "text": accumulated, "final": False})
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
+                llm_failed = True
+                await ws.send_json({"type": "warning", "message": f"LLM {type(e).__name__}: {e}"})
+
+            if not accumulated.strip():
+                # Refine produced nothing (truncated CoT, LLM error, etc.) — fall back to raw transcript
+                accumulated = transcript
+                if not llm_failed:
+                    await ws.send_json({
+                        "type": "warning",
+                        "message": "refine returned empty (likely thinking-model CoT truncated); falling back to transcript",
+                    })
             await ws.send_json({"type": "refined", "text": accumulated, "final": True})
 
         await ws.send_json({"type": "done"})
@@ -102,8 +154,10 @@ async def voice_input(ws: WebSocket):
     except WebSocketDisconnect:
         pass
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         try:
-            await ws.send_json({"type": "error", "message": str(e)})
+            await ws.send_json({"type": "error", "message": f"{type(e).__name__}: {e}"})
         except Exception:
             pass
 

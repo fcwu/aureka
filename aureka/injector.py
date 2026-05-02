@@ -68,16 +68,33 @@ def _inject_macos(text: str) -> None:
 
 
 def _inject_clipboard(text: str, paste_key: str) -> None:
+    import sys
     original = save_clipboard()
+    pasted = False
     try:
-        if pyperclip is not None:
-            pyperclip.copy(text)
+        if pyperclip is None:
+            print("[aureka] pyperclip not installed; cannot inject text.", file=sys.stderr)
+            return
+        pyperclip.copy(text)
         time.sleep(0.05)
-        if pyautogui is not None:
+        if pyautogui is None:
+            print(f"[aureka] pyautogui not installed; text copied to clipboard. Paste with {paste_key}.", file=sys.stderr)
+            return
+        try:
             pyautogui.hotkey(*paste_key.split("+"))
+            pasted = True
+        except Exception as e:
+            print(
+                f"[aureka] could not send {paste_key} ({type(e).__name__}: {e}). "
+                "On macOS grant Accessibility permission to the terminal in "
+                "System Settings → Privacy & Security → Accessibility. "
+                "Text is on the clipboard — paste manually.",
+                file=sys.stderr,
+            )
         time.sleep(0.05)
     finally:
-        restore_clipboard(original)
+        if pasted:
+            restore_clipboard(original)
 
 
 def replace_text(prev_len: int, new_text: str) -> None:

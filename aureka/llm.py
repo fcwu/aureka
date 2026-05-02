@@ -73,16 +73,78 @@ def check_vlm_supports_vision(test_image: str | None = None) -> None:
 
 
 _REFINE_SYSTEM = (
-    "你是專業文字編輯。將以下語音轉錄文字整理成自然流暢的書面文字：\n"
-    "- 移除重複、語氣詞（嗯、那個、就是說）\n"
-    "- 修正明顯語音辨識錯誤\n"
-    "- 保持原意，不要添加內容\n"
-    "- 直接輸出結果，不要解釋"
+    "你是文字編輯器，不是助理。\n"
+    "規則：\n"
+    "1. 修正同音字錯誤、明顯的 ASR 錯字\n"
+    "2. 加上中文標點符號（。，？！：；「」《》）\n"
+    "3. 自然斷句、適當換行成段落\n"
+    "4. 刪掉「嗯」「那個」「就是說」「對」等語氣詞、重複字\n"
+    "5. 中英文之間加半形空格\n"
+    "6. 不要加註解、不要說明、不要分析、不要思考過程\n"
+    "7. 第一個字就直接輸出整理後的全文"
 )
 
+# Few-shot examples force the model to output directly without analysis prelude.
+# Reasoning models will sometimes still emit <think> blocks, but they then mimic
+# the demonstrated terse-output pattern.
+_REFINE_FEWSHOT = [
+    {
+        "role": "user",
+        "content": "嗯今天天氣很好就是說我們可以去公園走走然後吃個午餐",
+    },
+    {
+        "role": "assistant",
+        "content": "今天天氣很好，我們可以去公園走走，然後吃個午餐。",
+    },
+    {
+        "role": "user",
+        "content": "我跟你講喔那個 OLIKA 是個語音工具就是把音檔丟進去她會幫你做筆記",
+    },
+    {
+        "role": "assistant",
+        "content": "我跟你講，Aureka 是個語音工具，把音檔丟進去，它會幫你做筆記。",
+    },
+]
+
 _TRANSLATE_SYSTEM = (
-    "你是專業翻譯。請將以下文字翻譯成{lang}，保持原意，直接輸出翻譯結果，不要解釋。"
+    "你是翻譯器，不是助理。\n"
+    "規則：\n"
+    "1. 翻譯成{lang}\n"
+    "2. 不要加註解、不要說明、不要分析、不要思考過程\n"
+    "3. 第一個字就直接輸出譯文"
 )
+
+
+_THINKING_PATTERNS = (
+    "thinking process",
+    "Self-Correction",
+    "**Step ",
+    "**Analyze ",
+    "1.  **",
+)
+
+
+def _looks_like_unclosed_thinking(s: str) -> bool:
+    """Heuristic for 'response is reasoning that got truncated before </think>'."""
+    head = s[:600]
+    return any(p in head for p in _THINKING_PATTERNS)
+
+
+def _strip_think_blocks(s: str) -> str:
+    """Remove <think>...</think> reasoning blocks. Handles four shapes:
+    1. <think>...</think> answer  (full block)
+    2. ...</think> answer         (chat template injected the opener; only closer appears in response)
+    3. answer                     (no thinking at all)
+    4. ...                        (truncated mid-thinking; never reached </think>) → return empty
+    """
+    import re
+    s = re.sub(r"<think>.*?</think>\s*", "", s, flags=re.DOTALL)
+    if "</think>" in s:
+        s = s.split("</think>", 1)[1]
+        return s.strip()
+    if _looks_like_unclosed_thinking(s):
+        return ""
+    return s.strip()
 
 
 async def llm_refine_stream(
@@ -101,20 +163,41 @@ async def llm_refine_stream(
     else:
         system = _REFINE_SYSTEM
 
-    async with openai.AsyncOpenAI(base_url=cfg.llm.base_url, api_key=cfg.llm.api_key) as client:
-        stream = await client.chat.completions.create(
-            model=model,
-            messages=[
-                {"role": "system", "content": system},
-                {"role": "user", "content": transcript},
-            ],
-            stream=True,
-        )
+    chat_kwargs: dict = {}
+    if cfg.llm.thinking_budget is not None:
+        chat_kwargs["thinking_budget"] = cfg.llm.thinking_budget
+        # 0 → also flip enable_thinking off so chat templates that respect it skip CoT entirely
+        if cfg.llm.thinking_budget == 0:
+            chat_kwargs["enable_thinking"] = False
 
+    messages = [{"role": "system", "content": system}]
+    if mode == "refine":
+        messages.extend(_REFINE_FEWSHOT)
+    messages.append({"role": "user", "content": transcript})
+
+    create_kwargs: dict = {
+        "model": model,
+        "messages": messages,
+        "stream": True,
+        "temperature": 0.3,
+    }
+    if cfg.llm.max_tokens is not None:
+        create_kwargs["max_tokens"] = cfg.llm.max_tokens
+    if chat_kwargs:
+        create_kwargs["extra_body"] = {"chat_template_kwargs": chat_kwargs}
+
+    async with openai.AsyncOpenAI(base_url=cfg.llm.base_url, api_key=cfg.llm.api_key) as client:
+        stream = await client.chat.completions.create(**create_kwargs)
+
+        full = ""
         async for chunk in stream:
             delta = chunk.choices[0].delta.content
             if delta:
-                yield delta
+                full += delta
+
+        cleaned = _strip_think_blocks(full)
+        if cleaned:
+            yield cleaned
 
 
 def summarize_transcript(transcript: str, frame_descriptions: list[str]) -> dict:

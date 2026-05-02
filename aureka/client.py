@@ -15,9 +15,11 @@ def _ws_url() -> str:
 
 
 async def _voice_session(mode: str, lang: str, audio: bytes) -> None:
+    import sys
     import websockets
     url = _ws_url()
     injected_len = 0
+    transcript_buf = ""
 
     async with websockets.connect(url) as ws:
         await ws.send(json.dumps({"type": "start", "mode": mode, "lang": lang}))
@@ -36,18 +38,33 @@ async def _voice_session(mode: str, lang: str, audio: bytes) -> None:
             msg = json.loads(msg_str)
             mtype = msg.get("type")
 
-            if mtype == "transcript" and msg.get("final"):
-                if mode == "transcribe":
-                    injector.inject_text(msg["text"])
-                    injected_len = len(msg["text"])
+            if mtype == "transcript":
+                transcript_buf += msg.get("text", "")
+                if msg.get("final"):
+                    print(f"[aureka] transcript: {transcript_buf}", file=sys.stderr)
+                    if mode == "transcribe":
+                        injector.inject_text(transcript_buf)
+                        injected_len = len(transcript_buf)
 
             elif mtype == "refined":
                 new_text = msg.get("text", "")
+                if msg.get("final"):
+                    print(f"[aureka] refined: {new_text}", file=sys.stderr)
                 injector.replace_text(injected_len, new_text)
                 injected_len = len(new_text)
 
+            elif mtype == "warning":
+                print(f"[aureka] {msg.get('message','(warning)')}", file=sys.stderr)
+
+            elif mtype == "error":
+                print(f"[aureka] daemon error: {msg.get('message','(no detail)')}", file=sys.stderr)
+                break
+
             elif mtype == "done":
                 break
+
+    if transcript_buf == "":
+        print("[aureka] (no speech detected)", file=sys.stderr)
 
 
 def run_voice_session(mode: str = "refine", lang: str = "zh") -> None:

@@ -10,6 +10,14 @@ class LLMConfig:
     base_url: str = "http://127.0.0.1:1234/v1"
     api_key: str = "lm-studio"
     model: str = "auto"
+    # Hard cap on total response tokens (CoT + answer; None = unbounded).
+    # Reasoning models burn ~1500–3000 tokens of CoT before producing the answer,
+    # so this needs headroom or the answer never gets emitted.
+    max_tokens: int | None = 4096
+    # Qwen3-specific thinking budget (tokens). Passed via chat_template_kwargs.
+    # 0 = disable thinking; small int = brief CoT; None = engine default.
+    # NB: only honored when the chat template forwards this kwarg (LM Studio: model-dependent).
+    thinking_budget: int | None = 128
 
 
 @dataclass
@@ -32,6 +40,7 @@ class TTSConfig:
     voice: str = "zf_xiaobei"
     lang_code: str = "z"
     device: str = "auto"
+    speed: float = 1.0
 
 
 @dataclass
