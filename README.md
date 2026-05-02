@@ -38,18 +38,19 @@ pip install -e ".[all]"
 pip install -r requirements-dev.txt   # 測試用
 ```
 
+### Python 版本
+
+需要 Python **3.11 或 3.13**（推薦）。Python 3.14+ 目前許多 ML 套件尚未支援，請勿使用。
+
 ### PyTorch（依平台）
 
-```bash
-# NVIDIA CUDA
-pip install torch --index-url https://download.pytorch.org/whl/cu121
+| 平台 | 指令 |
+|------|------|
+| NVIDIA GPU（Linux / Windows） | `pip install torch --index-url https://download.pytorch.org/whl/cu121` |
+| AMD GPU（**僅 Linux**，ROCm 不支援 Windows） | `pip install torch --index-url https://download.pytorch.org/whl/rocm6.1` |
+| Apple Silicon / CPU only | `pip install torch` |
 
-# AMD ROCm（native Linux）
-pip install torch --index-url https://download.pytorch.org/whl/rocm6.1
-
-# Apple Silicon / CPU only
-pip install torch
-```
+> **Windows 用戶**：只支援 NVIDIA CUDA 或 CPU。若不確定，直接 `pip install torch` 即可（CPU 模式）。
 
 ### ffmpeg（批次處理必要）
 
