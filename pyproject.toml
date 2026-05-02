@@ -60,9 +60,15 @@ voice = [
     "pyautogui>=0.9.0",
 ]
 
+# Settings UI (pywebview window backed by config.toml)
+ui = [
+    "pywebview>=5.0",
+    "tomlkit>=0.13",
+]
+
 # Full install (torch installed separately for GPU)
 all = [
-    "aureka[asr,tts,batch,voice]",
+    "aureka[asr,tts,batch,voice,ui]",
 ]
 
 # Development / testing

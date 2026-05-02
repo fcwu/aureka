@@ -176,6 +176,11 @@ def cmd_benchmark(args):
     )
 
 
+def cmd_ui(args):
+    from aureka.ui import open_settings
+    open_settings()
+
+
 def cmd_daemon(args):
     from aureka.daemon import start_daemon, stop_daemon, status_daemon
     if args.action == "start":
@@ -233,6 +238,9 @@ def main():
     p_bench.add_argument("--skip-llm", action="store_true",
                          help="Skip LLM benchmark (no LM Studio / Ollama call)")
 
+    # ui
+    sub.add_parser("ui", help="Open settings UI (pywebview)")
+
     # daemon
     p_daemon = sub.add_parser("daemon", help="Manage background daemon")
     p_daemon.add_argument("action", choices=["start", "stop", "status"])
@@ -265,6 +273,7 @@ def main():
         "type": cmd_type,
         "download": cmd_download,
         "benchmark": cmd_benchmark,
+        "ui": cmd_ui,
         "daemon": cmd_daemon,
         "_daemon_serve": cmd_daemon_serve,
     }
