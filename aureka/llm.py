@@ -138,7 +138,6 @@ def summarize_transcript(transcript: str, frame_descriptions: list[str]) -> dict
         model=model,
         messages=[{"role": "user", "content": prompt}],
         max_tokens=2048,
-        response_format={"type": "json_object"},
     )
     import json
     try:
