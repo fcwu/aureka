@@ -1,4 +1,8 @@
-## ADDED Requirements
+## Purpose
+
+定義 aureka 背景 daemon 的 HTTP/WebSocket 介面、生命週期與模型預載行為。
+
+## Requirements
 
 ### Requirement: HTTP 健康檢查端點
 系統 SHALL 提供 `GET /health` 端點，回傳 daemon 狀態。

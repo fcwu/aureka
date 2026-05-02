@@ -1,4 +1,8 @@
-## ADDED Requirements
+## Purpose
+
+封裝 Kokoro TTS（中英雙語），支援即時播放、儲存 WAV 與檔案朗讀。
+
+## Requirements
 
 ### Requirement: Kokoro TTS 封裝
 系統 SHALL 使用 Kokoro（82M 參數）作為 TTS 引擎，支援中英雙語，自動選擇 CUDA/MPS/CPU 裝置。

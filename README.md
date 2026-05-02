@@ -84,6 +84,18 @@ cp config.example.toml config.toml
 
 最少需要設定 `[llm]` 和 `[vlm]` 的 `base_url`，其他欄位有預設值。
 
+### 預先下載模型（建議）
+
+首次執行 `aureka speak` / `aureka type` / `aureka daemon start` 會在背景從 HuggingFace 下載
+ASR 與 TTS 權重（合計約 2GB），下載期間指令會看似 hang 住。建議先執行：
+
+```bash
+aureka download
+```
+
+這會把 Kokoro TTS 與 Whisper ASR 模型一次下載完，並顯示進度條。已下載的檔案會自動跳過。
+HuggingFace cache 路徑可透過 `HF_HOME` 環境變數自訂。
+
 ---
 
 ## 批次處理

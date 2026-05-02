@@ -1,4 +1,8 @@
-## ADDED Requirements
+## Purpose
+
+定義語音輸入工作流程：熱鍵觸發 → 錄音 → ASR → 可選 LLM 修飾/翻譯 → 文字注入到游標位置。
+
+## Requirements
 
 ### Requirement: 全域熱鍵觸發錄音
 系統 SHALL 支援透過可設定的全域熱鍵（預設 `Ctrl+Alt+Space`）觸發語音輸入工作階段。

@@ -46,6 +46,12 @@ cp config.example.toml config.toml
 # 編輯 config.toml：設定 LM Studio endpoint、hotkey 等
 ```
 
+### 預先下載模型（建議）
+
+首次跑 `speak` / `type` / `daemon start` 會在背景從 HuggingFace 抓 Kokoro + Whisper（~2GB），
+看起來像卡住。先跑 `aureka download` 把模型一次備齊（idempotent，重跑會跳過已下載項目）。
+受 `HF_HOME` 環境變數影響。
+
 ---
 
 ## 2. 啟動 Daemon

@@ -1,4 +1,8 @@
-## ADDED Requirements
+## Purpose
+
+定義批次流水線（影片/音訊 → ASR + 關鍵畫面 + LLM 摘要 → Markdown）的輸入、處理階段與輸出規則。
+
+## Requirements
 
 ### Requirement: 接受影片或音訊輸入
 系統 SHALL 接受 `.mp4`、`.mkv`、`.mov`、`.mp3`、`.wav`、`.m4a` 格式的輸入檔案。

@@ -107,6 +107,20 @@ def cmd_type(args):
         injector.inject_text(text)
 
 
+def cmd_download(args):
+    from aureka import models
+    try:
+        paths = models.download_all(device=args.device)
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    keys = models._select_models(device=args.device)
+    print("\n[aureka] Models ready:")
+    for key, path in zip(keys, paths):
+        print(f"  {key:16s}  {models.MODEL_REGISTRY[key]:48s}  {path}")
+
+
 def cmd_daemon(args):
     from aureka.daemon import start_daemon, stop_daemon, status_daemon
     if args.action == "start":
@@ -147,6 +161,12 @@ def main():
     p_type.add_argument("--mode", choices=["transcribe", "refine", "translate"])
     p_type.add_argument("--lang", metavar="LANG", help="Language code (e.g. zh, en, ja)")
 
+    # download
+    sub.add_parser(
+        "download",
+        help="Pre-download all model weights (Kokoro TTS + Whisper ASR) used at runtime",
+    )
+
     # daemon
     p_daemon = sub.add_parser("daemon", help="Manage background daemon")
     p_daemon.add_argument("action", choices=["start", "stop", "status"])
@@ -177,6 +197,7 @@ def main():
         "process": cmd_process,
         "speak": cmd_speak,
         "type": cmd_type,
+        "download": cmd_download,
         "daemon": cmd_daemon,
         "_daemon_serve": cmd_daemon_serve,
     }

@@ -1,4 +1,8 @@
-## ADDED Requirements
+## Purpose
+
+封裝 ASR（語音轉文字）後端，提供統一介面、自動裝置/後端選擇與標準音訊格式。
+
+## Requirements
 
 ### Requirement: 統一 ASR 介面
 系統 SHALL 提供統一的 `transcribe(audio: np.ndarray, sample_rate: int) -> list[Segment]` 介面，隱藏底層後端差異。
