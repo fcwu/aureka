@@ -21,13 +21,19 @@ pip install aureka
 
 # 按需加裝功能模組
 pip install "aureka[asr]"           # ASR（faster-whisper）
-pip install "aureka[tts]"           # TTS（Kokoro）
+pip install "aureka[tts]"           # TTS（Kokoro）— 僅 Linux / macOS
 pip install "aureka[batch]"         # 批次流水線（需另裝 ffmpeg，見下方）
 pip install "aureka[voice]"         # 語音輸入 client（pynput/pystray）
-pip install "aureka[all]"           # 以上全部
+pip install "aureka[all]"           # 以上全部（Windows 請用下方指令）
 ```
 
 > **注意**：PyTorch 需依平台單獨安裝（見下方），不包含在 extras 中。
+
+**Windows 用戶**：Kokoro TTS 目前無 Windows wheel，請跳過 `[tts]`：
+
+```powershell
+pip install "aureka[asr,batch,voice]"
+```
 
 ### 從原始碼安裝
 
