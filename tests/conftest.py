@@ -59,3 +59,7 @@ def mock_llm_server():
     yield f"http://127.0.0.1:{port}"
     proc.terminate()
     proc.wait()
+    if proc.stdout:
+        proc.stdout.close()
+    if proc.stderr:
+        proc.stderr.close()

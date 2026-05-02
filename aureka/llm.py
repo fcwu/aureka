@@ -90,12 +90,10 @@ async def llm_refine_stream(
 ) -> AsyncGenerator[str, None]:
     """Async generator yielding refined/translated text tokens."""
     cfg = get_config()
-    client = openai.AsyncOpenAI(base_url=cfg.llm.base_url, api_key=cfg.llm.api_key)
     model = cfg.llm.model
 
     if model == "auto":
-        sync_client = _get_llm()
-        model = _resolve_model(sync_client, "auto")
+        model = _resolve_model(_get_llm(), "auto")
 
     if mode == "translate":
         lang_name = {"en": "英文", "zh": "繁體中文", "ja": "日文"}.get(lang, lang)
@@ -103,19 +101,20 @@ async def llm_refine_stream(
     else:
         system = _REFINE_SYSTEM
 
-    stream = await client.chat.completions.create(
-        model=model,
-        messages=[
-            {"role": "system", "content": system},
-            {"role": "user", "content": transcript},
-        ],
-        stream=True,
-    )
+    async with openai.AsyncOpenAI(base_url=cfg.llm.base_url, api_key=cfg.llm.api_key) as client:
+        stream = await client.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": system},
+                {"role": "user", "content": transcript},
+            ],
+            stream=True,
+        )
 
-    async for chunk in stream:
-        delta = chunk.choices[0].delta.content
-        if delta:
-            yield delta
+        async for chunk in stream:
+            delta = chunk.choices[0].delta.content
+            if delta:
+                yield delta
 
 
 def summarize_transcript(transcript: str, frame_descriptions: list[str]) -> dict:

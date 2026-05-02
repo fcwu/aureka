@@ -45,6 +45,10 @@ def daemon_process(tmp_path):
 
     proc.terminate()
     proc.wait(timeout=5)
+    if proc.stdout:
+        proc.stdout.close()
+    if proc.stderr:
+        proc.stderr.close()
 
 
 def test_daemon_health(daemon_process):

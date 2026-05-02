@@ -23,6 +23,10 @@ def use_mock_llm(mock_llm_server, monkeypatch, tmp_path):
     llm_mod._llm_client = None
     llm_mod._vlm_client = None
     yield
+    if llm_mod._llm_client:
+        llm_mod._llm_client.close()
+    if llm_mod._vlm_client:
+        llm_mod._vlm_client.close()
     llm_mod._llm_client = None
     llm_mod._vlm_client = None
 
