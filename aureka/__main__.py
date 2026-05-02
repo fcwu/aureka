@@ -138,6 +138,7 @@ def cmd_type(args):
             print("[aureka] Recording... press Enter to stop.")
             recorder.start()
 
+            # Run input() on a thread so we don't block the asyncio loop
             session_task = asyncio.create_task(
                 _voice_session(mode, lang, queue, streaming=True)
             )
