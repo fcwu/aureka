@@ -16,8 +16,8 @@ def daemon_process(tmp_path):
     config = tmp_path / "config.toml"
     config.write_text(
         f'[daemon]\nport = {DAEMON_PORT}\n'
-        f'pid_file = "{tmp_path}/daemon.pid"\n'
-        f'log_file = "{tmp_path}/daemon.log"\n'
+        f'pid_file = "{(tmp_path / "daemon.pid").as_posix()}"\n'
+        f'log_file = "{(tmp_path / "daemon.log").as_posix()}"\n'
     )
     env = os.environ.copy()
     env["AUREKA_CONFIG"] = str(config)
@@ -63,7 +63,7 @@ def test_daemon_responds_after_restart(tmp_path):
 
     config.write_text(
         f'[daemon]\nhost = "127.0.0.1"\nport = {port}\n'
-        f'pid_file = "{pid_file}"\nlog_file = "{log_file}"\n'
+        f'pid_file = "{pid_file.as_posix()}"\nlog_file = "{log_file.as_posix()}"\n'
     )
 
     env = os.environ.copy()
