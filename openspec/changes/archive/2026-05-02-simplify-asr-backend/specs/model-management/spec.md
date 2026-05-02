@@ -1,8 +1,5 @@
-# model-management Specification
+## MODIFIED Requirements
 
-## Purpose
-TBD - created by archiving change add-model-download-command. Update Purpose after archive.
-## Requirements
 ### Requirement: 模型 Registry
 系統 SHALL 在 `aureka/models.py` 提供 `model_registry() -> dict[str, str]` 函數作為所有可下載模型的 single source of truth，key 為邏輯名稱、value 為 HuggingFace repo ID；faster-whisper 的 repo_id 依當前 `cfg.asr.model` 動態決定。
 
@@ -47,11 +44,3 @@ TBD - created by archiving change add-model-download-command. Update Purpose aft
 #### Scenario: 受限 repo 無權限
 - **WHEN** 任一目標 repo 因 HuggingFace token 缺失或權限不足而下載失敗
 - **THEN** 系統印出錯誤訊息並建議執行 `huggingface-cli login`，以 non-zero exit code 結束
-
-### Requirement: 尊重 HuggingFace Cache 環境變數
-系統 SHALL 透過呼叫 `huggingface_hub.snapshot_download` 自動繼承 `HF_HOME`、`HF_HUB_CACHE` 等環境變數的設定，不另外定義 cache 路徑。
-
-#### Scenario: 自訂 cache 位置
-- **WHEN** 使用者設定 `HF_HOME=/data/hf-cache` 並執行 `download_all()`
-- **THEN** 模型下載至 `/data/hf-cache` 之下，不使用預設 `~/.cache/huggingface`
-

@@ -7,44 +7,40 @@ import pytest
 pytestmark = pytest.mark.unit
 
 
+# ── model_registry ───────────────────────────────────────────────────────────
+
 def test_registry_contains_required_keys():
-    from aureka.models import MODEL_REGISTRY
-    for key in ("kokoro", "faster-whisper", "thewhisper"):
-        assert key in MODEL_REGISTRY
-        assert "/" in MODEL_REGISTRY[key]
+    from aureka.models import model_registry
+    reg = model_registry()
+    assert set(reg.keys()) == {"kokoro", "faster-whisper"}
+    for v in reg.values():
+        assert "/" in v
 
 
-# ── _select_models ────────────────────────────────────────────────────────────
+def test_registry_faster_whisper_follows_config_default():
+    from aureka.models import model_registry
+    # default cfg.asr.model is "medium"
+    reg = model_registry()
+    assert reg["faster-whisper"] == "Systran/faster-whisper-medium"
 
-def test_select_models_cpu_excludes_thewhisper():
+
+def test_registry_faster_whisper_switches_with_config():
+    from aureka import models, config as cfg_mod
+    cfg_mod.reset_config()
+    with patch.object(cfg_mod, "_cfg", None), \
+         patch("aureka.config.load_config") as load:
+        fake_cfg = cfg_mod.Config()
+        fake_cfg.asr.model = "large-v3"
+        load.return_value = fake_cfg
+        cfg_mod._cfg = fake_cfg
+        reg = models.model_registry()
+    cfg_mod.reset_config()
+    assert reg["faster-whisper"] == "Systran/faster-whisper-large-v3"
+
+
+def test_select_models_returns_kokoro_and_faster_whisper():
     from aureka import models
-    with patch("aureka.device.resolve_device", return_value="cpu"):
-        keys = models._select_models("cpu")
-    assert keys == ["kokoro", "faster-whisper"]
-
-
-def test_select_models_cuda_with_thewhisper():
-    from aureka import models
-    with patch("aureka.device.resolve_device", return_value="cuda"), \
-         patch.object(models, "_thewhisper_available", return_value=True):
-        keys = models._select_models("cuda")
-    assert keys == ["kokoro", "faster-whisper", "thewhisper"]
-
-
-def test_select_models_cuda_without_thewhisper():
-    from aureka import models
-    with patch("aureka.device.resolve_device", return_value="cuda"), \
-         patch.object(models, "_thewhisper_available", return_value=False):
-        keys = models._select_models("cuda")
-    assert keys == ["kokoro", "faster-whisper"]
-
-
-def test_select_models_mps_with_thewhisper():
-    from aureka import models
-    with patch("aureka.device.resolve_device", return_value="mps"), \
-         patch.object(models, "_thewhisper_available", return_value=True):
-        keys = models._select_models("mps")
-    assert keys == ["kokoro", "faster-whisper", "thewhisper"]
+    assert models._select_models() == ["kokoro", "faster-whisper"]
 
 
 # ── download_all ──────────────────────────────────────────────────────────────
@@ -54,32 +50,29 @@ def test_download_all_returns_paths_matching_selection(tmp_path):
 
     fake_paths = {
         "hexgrad/Kokoro-82M": str(tmp_path / "kokoro"),
-        "Systran/faster-whisper-large-v3": str(tmp_path / "fw"),
+        "Systran/faster-whisper-medium": str(tmp_path / "fw"),
     }
 
     def fake_snapshot_download(repo_id, **kwargs):
         return fake_paths[repo_id]
 
-    with patch("aureka.device.resolve_device", return_value="cpu"), \
-         patch("huggingface_hub.snapshot_download", side_effect=fake_snapshot_download) as m:
+    with patch("huggingface_hub.snapshot_download", side_effect=fake_snapshot_download) as m:
         paths = models.download_all("cpu")
 
     assert m.call_count == 2
     assert paths == [Path(fake_paths["hexgrad/Kokoro-82M"]),
-                     Path(fake_paths["Systran/faster-whisper-large-v3"])]
+                     Path(fake_paths["Systran/faster-whisper-medium"])]
 
 
 def test_download_all_fail_fast_stops_on_first_error():
     from aureka import models
-
     calls = {"n": 0}
 
     def fake_snapshot_download(repo_id, **kwargs):
         calls["n"] += 1
         raise OSError("network down")
 
-    with patch("aureka.device.resolve_device", return_value="cpu"), \
-         patch("huggingface_hub.snapshot_download", side_effect=fake_snapshot_download):
+    with patch("huggingface_hub.snapshot_download", side_effect=fake_snapshot_download):
         with pytest.raises(OSError):
             models.download_all("cpu")
 
@@ -96,7 +89,6 @@ def test_download_all_gated_repo_hints_login():
     def fake_snapshot_download(repo_id, **kwargs):
         raise GatedRepoError("forbidden", response=fake_response)
 
-    with patch("aureka.device.resolve_device", return_value="cpu"), \
-         patch("huggingface_hub.snapshot_download", side_effect=fake_snapshot_download):
+    with patch("huggingface_hub.snapshot_download", side_effect=fake_snapshot_download):
         with pytest.raises(RuntimeError, match="huggingface-cli login"):
             models.download_all("cpu")

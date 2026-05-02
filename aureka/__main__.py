@@ -115,10 +115,11 @@ def cmd_download(args):
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
 
-    keys = models._select_models(device=args.device)
+    keys = models._select_models()
+    registry = models.model_registry()
     print("\n[aureka] Models ready:")
     for key, path in zip(keys, paths):
-        print(f"  {key:16s}  {models.MODEL_REGISTRY[key]:48s}  {path}")
+        print(f"  {key:16s}  {registry[key]:48s}  {path}")
 
 
 def cmd_benchmark(args):

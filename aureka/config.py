@@ -20,6 +20,14 @@ class VLMConfig:
 
 
 @dataclass
+class AsrConfig:
+    # faster-whisper model name. Accepts standard sizes (tiny / base / small /
+    # medium / large-v2 / large-v3 / large-v3-turbo), HuggingFace repo IDs, or
+    # local paths. Default `medium` is a sweet spot between accuracy and speed.
+    model: str = "medium"
+
+
+@dataclass
 class TTSConfig:
     voice: str = "zf_xiaobei"
     lang_code: str = "z"
@@ -46,6 +54,7 @@ class HotkeyConfig:
 class Config:
     llm: LLMConfig = field(default_factory=LLMConfig)
     vlm: VLMConfig = field(default_factory=VLMConfig)
+    asr: AsrConfig = field(default_factory=AsrConfig)
     tts: TTSConfig = field(default_factory=TTSConfig)
     daemon: DaemonConfig = field(default_factory=DaemonConfig)
     hotkey: HotkeyConfig = field(default_factory=HotkeyConfig)
@@ -77,6 +86,8 @@ def load_config(path: str | Path | None = None) -> Config:
         _apply(cfg.llm, raw["llm"])
     if "vlm" in raw:
         _apply(cfg.vlm, raw["vlm"])
+    if "asr" in raw:
+        _apply(cfg.asr, raw["asr"])
     if "tts" in raw:
         _apply(cfg.tts, raw["tts"])
     if "daemon" in raw:

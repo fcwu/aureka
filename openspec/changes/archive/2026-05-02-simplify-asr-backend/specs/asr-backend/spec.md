@@ -1,28 +1,14 @@
-## Purpose
+## REMOVED Requirements
 
-封裝 ASR（語音轉文字）後端，提供統一介面、自動裝置/後端選擇與標準音訊格式。
-## Requirements
-### Requirement: 統一 ASR 介面
-系統 SHALL 提供統一的 `transcribe(audio: np.ndarray, sample_rate: int) -> list[Segment]` 介面，隱藏底層後端差異。
+### Requirement: ASR 後端自動選擇
+**Reason**: TheWhisper backend 已完全移除（PyPI 上的 `thestage-speechkit` 是空殼 placeholder，從未真正運作）。系統一律使用 faster-whisper，不再需要 backend 選擇邏輯。
+**Migration**: 直接移除 `aureka/device.py:resolve_asr_backend()`；上層程式碼直接呼叫 `aureka.asr.load_asr(device)` 即可。
 
-#### Scenario: 呼叫統一介面
-- **WHEN** 上層程式碼呼叫 `asr.transcribe(audio, 16000)`
-- **THEN** 回傳 `[Segment(start, end, text), ...]` 清單，不論底層使用哪個後端
+### Requirement: TheWhisper 後端
+**Reason**: TheWhisper SDK 從未在 PyPI 釋出可用版本，相關 code path 永遠走不到。
+**Migration**: 移除 `aureka/asr.py:_TheWhisperBackend` class 與 `pyproject.toml` 的 `asr-thewhisper` extra。使用 faster-whisper 取代；想要更高精度可在 `[asr] model = "large-v3"` 設定。
 
-### Requirement: 平台自動裝置偵測
-系統 SHALL 透過 `resolve_device()` 自動偵測最佳計算裝置：CUDA（NVIDIA/AMD ROCm HIP 橋接）> MPS（Apple Silicon）> CPU。
-
-#### Scenario: NVIDIA CUDA 環境
-- **WHEN** `torch.cuda.is_available()` 回傳 True
-- **THEN** `resolve_device()` 回傳 `"cuda"`
-
-#### Scenario: Apple Silicon 環境
-- **WHEN** `torch.backends.mps.is_available()` 回傳 True 且 CUDA 不可用
-- **THEN** `resolve_device()` 回傳 `"mps"`
-
-#### Scenario: CPU fallback
-- **WHEN** CUDA 和 MPS 均不可用
-- **THEN** `resolve_device()` 回傳 `"cpu"`
+## MODIFIED Requirements
 
 ### Requirement: faster-whisper 後端
 系統 SHALL 使用 faster-whisper 作為唯一的 ASR backend，所載入的模型由 `cfg.asr.model` 決定（預設 `medium`），支援所有 faster-whisper 接受的模型字串（`tiny`/`base`/`small`/`medium`/`large-v2`/`large-v3`/`large-v3-turbo` 或 HuggingFace repo ID 或本地路徑）。
@@ -47,12 +33,7 @@
 - **WHEN** `cfg.asr.model` 為非標準字串（例如 HuggingFace repo ID 或本地路徑）
 - **THEN** 系統將該字串原樣傳給 `WhisperModel(...)`，由 faster-whisper 自行驗證
 
-### Requirement: 支援音訊格式
-系統 SHALL 接受 `float32` numpy array（值域 -1.0 至 1.0，16kHz mono）作為 ASR 輸入標準格式。
-
-#### Scenario: int16 PCM 轉換
-- **WHEN** 輸入為 int16 PCM（來自麥克風錄音）
-- **THEN** 系統自動轉換：`audio.astype(np.float32) / 32768.0`
+## ADDED Requirements
 
 ### Requirement: ASR 模型可設定
 系統 SHALL 提供 `[asr]` config 段，包含 `model: str` 欄位，讓使用者依硬體在不改 source code 的前提下選擇 faster-whisper 模型大小。
@@ -64,4 +45,3 @@
 #### Scenario: 從 TOML 讀取
 - **WHEN** `config.toml` 含 `[asr]\nmodel = "large-v3"`
 - **THEN** `cfg.asr.model == "large-v3"`
-

@@ -1,4 +1,4 @@
-"""Unified ASR interface supporting TheWhisper and faster-whisper backends."""
+"""ASR using faster-whisper. Model size is configurable via [asr] in config.toml."""
 import os
 from dataclasses import dataclass
 from typing import Generator
@@ -26,22 +26,12 @@ def _with_is_last(it):
         yield prev
 
 
-class _TheWhisperBackend:
-    def __init__(self, device: str):
-        from thestage_speechkit import WhisperPipeline
-        self._pipeline = WhisperPipeline.from_pretrained(
-            "thestage-ai/thewhisper-large-v3-turbo",
-            device=device,
-        )
-
-    def transcribe(self, audio: np.ndarray, sample_rate: int = 16000) -> Generator[Segment, None, None]:
-        result = self._pipeline(audio)
-        yield from _with_is_last(Segment(s.start, s.end, s.text) for s in result.segments)
-
-
 class _FasterWhisperBackend:
-    def __init__(self, device: str, model_size: str = "large-v3"):
+    def __init__(self, device: str, model_size: str):
         from faster_whisper import WhisperModel
+        # ctranslate2 supports cuda and cpu only; map mps → cpu
+        if device == "mps":
+            device = "cpu"
         compute = "float16" if device == "cuda" else "int8"
         self._model = WhisperModel(model_size, device=device, compute_type=compute)
 
@@ -60,21 +50,22 @@ class _MockBackend:
 _backend = None
 
 
-def load_asr(device: str = "auto", backend_name: str | None = None) -> None:
-    """Pre-load ASR backend into module-level singleton."""
+def load_asr(device: str = "auto") -> None:
+    """Pre-load faster-whisper into module-level singleton.
+
+    Model name is read from `cfg.asr.model` (default `medium`). Accepts standard
+    sizes, HuggingFace repo IDs, or local paths — passed through to WhisperModel.
+    """
     global _backend
     if os.environ.get("AUREKA_TEST_MODE") == "1":
         _backend = _MockBackend()
         return
 
-    from aureka.device import resolve_device, resolve_asr_backend
+    from aureka.device import resolve_device
+    from aureka.config import get_config
+    cfg = get_config()
     dev = resolve_device(device)
-    bname = backend_name or resolve_asr_backend(dev)
-
-    if bname == "thewhisper":
-        _backend = _TheWhisperBackend(dev)
-    else:
-        _backend = _FasterWhisperBackend(dev)
+    _backend = _FasterWhisperBackend(dev, cfg.asr.model)
 
 
 def transcribe(audio: np.ndarray, sample_rate: int = 16000) -> Generator[Segment, None, None]:

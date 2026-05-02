@@ -327,7 +327,7 @@ def _torch_summary() -> str:
 
 def _collect_aureka_env(device: str) -> dict:
     from aureka.config import get_config
-    from aureka.device import resolve_device, resolve_asr_backend
+    from aureka.device import resolve_device
     cfg = get_config()
     dev = resolve_device(device)
     return {
@@ -338,7 +338,7 @@ def _collect_aureka_env(device: str) -> dict:
         "gpu": _gpu_name(),
         "aureka": _pkg_version("aureka"),
         "device_resolved": dev,
-        "asr_backend": resolve_asr_backend(dev),
+        "asr_model": cfg.asr.model,
         "tts_voice": f"{cfg.tts.voice} (lang={cfg.tts.lang_code})",
         "kokoro": _pkg_version("kokoro"),
         "faster_whisper": _pkg_version("faster-whisper"),

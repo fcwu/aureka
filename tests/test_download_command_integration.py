@@ -33,7 +33,7 @@ def fake_hf_env(tmp_path, monkeypatch):
         def _stub(repo_id, **kwargs):
             mapping = {{
                 "hexgrad/Kokoro-82M": r"{fake_kokoro}",
-                "Systran/faster-whisper-large-v3": r"{fake_fw}",
+                "Systran/faster-whisper-medium": r"{fake_fw}",
             }}
             return mapping[repo_id]
 
@@ -61,8 +61,8 @@ def test_download_command_cpu_succeeds(fake_hf_env):
     )
     assert result.returncode == 0, f"stderr: {result.stderr}\nstdout: {result.stdout}"
     assert "hexgrad/Kokoro-82M" in result.stdout
-    assert "Systran/faster-whisper-large-v3" in result.stdout
+    assert "Systran/faster-whisper-medium" in result.stdout
     assert str(fake_kokoro) in result.stdout
     assert str(fake_fw) in result.stdout
-    # CPU device must skip TheWhisper
-    assert "thewhisper" not in result.stdout.lower() or "thestage-ai" not in result.stdout
+    # TheWhisper has been removed entirely
+    assert "thewhisper" not in result.stdout.lower()

@@ -9,6 +9,11 @@ base_url = "http://127.0.0.1:1234/v1"
 api_key  = "lm-studio"
 # 指定模型 ID，或 "auto"（使用端點第一個可用模型）
 model    = "auto"
+# 整個回覆（含 CoT）的 token 上限；thinking 模型很會碎念，給它寬裕一點，否則只剩 CoT 沒答案
+max_tokens = 4096
+# 思考鏈 token 預算（qwen3 thinking 系列）：0 = 關閉、128 = 簡短、移除此行 = 不限
+# 注意：LM Studio 的 chat template 不一定會吃這個 kwarg，建議在 LM Studio 內 disable reasoning
+thinking_budget = 128
 
 # ── VLM（視覺模型）────────────────────────────────────────────────────────────
 [vlm]
@@ -16,6 +21,15 @@ base_url = "http://127.0.0.1:1234/v1"
 api_key  = "lm-studio"
 # 必須載入支援 vision 的模型，否則啟動時 fatal error
 model    = "auto"
+
+# ── ASR ──────────────────────────────────────────────────────────────────────
+[asr]
+# faster-whisper 模型大小，依硬體挑：
+#   tiny / base / small        — 老機器或省資源；中文精度有限
+#   medium                     — 預設，中等機器的 sweet spot
+#   large-v3 / large-v3-turbo  — 高階機器，最佳精度（~3GB，下載較久）
+# 也接受 HuggingFace repo ID 或本地路徑。先用 `aureka benchmark` 看 RTF 再決定。
+model = "medium"
 
 # ── TTS ──────────────────────────────────────────────────────────────────────
 [tts]
@@ -25,6 +39,8 @@ voice     = "zf_xiaobei"
 lang_code = "z"
 # 計算裝置：auto / cuda / mps / cpu
 device    = "auto"
+# 語速倍率（1.0 = 正常；1.3 = 快；0.8 = 慢）
+speed     = 1.0
 
 # ── Daemon ────────────────────────────────────────────────────────────────────
 [daemon]

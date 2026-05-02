@@ -84,6 +84,24 @@ cp config.example.toml config.toml
 
 最少需要設定 `[llm]` 和 `[vlm]` 的 `base_url`，其他欄位有預設值。
 
+### 升級提醒（從 0.1.x → 0.2.x）
+
+ASR 預設模型從 `large-v3` 改為 `medium`：較小、較快，但中文精度小幅降低。要回 `large-v3` 在 `config.toml` 設 `[asr]\nmodel = "large-v3"` 即可。`large-v3` 的舊 cache（~3GB）不會自動刪，要省空間執行 `huggingface-cli delete-cache`。同時移除了 `[asr-thewhisper]` extra（從未真正運作），請改用標準 `[asr]` extra。
+
+### 選 ASR 模型大小
+
+`config.toml` 的 `[asr] model` 欄位決定 faster-whisper 用哪個 size：
+
+| Model | 大小 | RTF（M3 MPS 為例） | 中文精度 | 適合 |
+|-------|------|-------------------|---------|------|
+| `tiny` / `base` | 75 / 145 MB | < 0.1 | 低 | 老機器 / 只測試 |
+| `small` | 460 MB | ~0.2 | 中 | 入門電腦 |
+| **`medium`**（預設） | 1.5 GB | ~0.4 | 高 | 中等 GPU、中等 Mac |
+| `large-v3` | 3 GB | > 1.0 | 最高 | 高階 GPU 或樂意等 |
+| `large-v3-turbo` | ~1.5 GB | ~0.3 | 接近 large-v3 | 想要 large 精度但更快 |
+
+跑 `aureka benchmark --quick --skip-llm` 看自己機器的 RTF 再決定。改完 config 後重跑 `aureka download` 會抓對應 model；舊 model cache 不會自動刪，要省空間用 `huggingface-cli delete-cache`。
+
 ### 預先下載模型（建議）
 
 首次執行 `aureka speak` / `aureka type` / `aureka daemon start` 會在背景從 HuggingFace 下載
@@ -328,8 +346,8 @@ aureka/
 ├── aureka/
 │   ├── __main__.py       # CLI 入口（process / speak / type / daemon）
 │   ├── config.py         # config.toml 載入（AUREKA_CONFIG env var）
-│   ├── device.py         # 裝置偵測（cuda / mps / cpu）+ ASR 後端選擇
-│   ├── asr.py            # ASR 統一介面（TheWhisper / faster-whisper）
+│   ├── device.py         # 裝置偵測（cuda / mps / cpu）
+│   ├── asr.py            # faster-whisper 封裝（model 由 [asr] config 決定）
 │   ├── llm.py            # LLM / VLM 呼叫（OpenAI-compatible）
 │   ├── tts.py            # Kokoro TTS 封裝 + Markdown 前處理
 │   ├── pipeline.py       # 批次流程編排
@@ -342,7 +360,7 @@ aureka/
 │   └── formatter.py      # Markdown 輸出格式化
 ├── tests/
 │   ├── conftest.py               # 共用 fixtures（mock server、config）
-│   ├── test_device.py            # unit: 裝置偵測、ASR 後端選擇
+│   ├── test_device.py            # unit: 裝置偵測
 │   ├── test_tts.py               # unit: Markdown 前處理
 │   ├── test_injector.py          # unit: 文字注入邏輯
 │   ├── test_llm.py               # integration: LLM/VLM client
@@ -367,9 +385,9 @@ aureka/
 
 | 平台 | 語音輸入 | 批次處理 | ASR 加速 | TTS 加速 |
 |------|---------|---------|---------|---------|
-| NVIDIA Linux | ✅ | ✅ | CUDA (TheWhisper) | CUDA (Kokoro) |
+| NVIDIA Linux | ✅ | ✅ | CUDA (faster-whisper) | CUDA (Kokoro) |
 | AMD Linux | ✅ | ✅ | ROCm (faster-whisper) | ROCm (Kokoro) |
-| Apple Silicon | ✅ | ✅ | CoreML (TheWhisper) | MPS (Kokoro) |
+| Apple Silicon | ✅ | ✅ | CPU (faster-whisper) | MPS (Kokoro) |
 | CPU only | ✅ | ✅ | CPU (faster-whisper) | CPU (Kokoro) |
 
 > WSL2 為開發環境，GPU 不可用，所有測試以 CPU + mock 模式執行。

@@ -38,9 +38,6 @@ dependencies = [
 asr = [
     "faster-whisper>=1.0.0",
 ]
-asr-thewhisper = [
-    "thestage-speechkit>=0.1.0",
-]
 
 # TTS
 tts = [
