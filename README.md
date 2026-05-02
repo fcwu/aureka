@@ -84,6 +84,18 @@ cp config.example.toml config.toml
 
 最少需要設定 `[llm]` 和 `[vlm]` 的 `base_url`，其他欄位有預設值。
 
+### 即時轉錄（streaming）
+
+`aureka type` 預設啟用 streaming：講話過程中游標就會開始出現轉錄文字（每停頓 600ms 一段），不必等講完才看到結果。最終 LLM-refined 文字會 replace 整段累積的 raw 文字。
+
+要退回舊行為（錄完才轉）：
+
+```bash
+aureka type --no-streaming
+```
+
+技術上是 daemon 端用 silero-vad 偵測語句邊界，每段 close 時立刻轉錄並推 partial 回 client。silero-vad 無法載入時自動 fallback 回 buffer 模式。
+
 ### 升級提醒（從 0.1.x → 0.2.x）
 
 ASR 預設模型從 `large-v3` 改為 `medium`：較小、較快，但中文精度小幅降低。要回 `large-v3` 在 `config.toml` 設 `[asr]\nmodel = "large-v3"` 即可。`large-v3` 的舊 cache（~3GB）不會自動刪，要省空間執行 `huggingface-cli delete-cache`。同時移除了 `[asr-thewhisper]` extra（從未真正運作），請改用標準 `[asr]` extra。

@@ -14,33 +14,64 @@ def _ws_url() -> str:
     return f"ws://{cfg.daemon.host}:{cfg.daemon.port}/ws"
 
 
-async def _voice_session(mode: str, lang: str, audio: bytes) -> None:
+async def _voice_session(
+    mode: str,
+    lang: str,
+    audio_source,
+    streaming: bool = True,
+) -> None:
+    """Run a voice session.
+
+    `audio_source` may be:
+      - `bytes`: send all at once (legacy / non-streaming)
+      - an `asyncio.Queue` yielding bytes chunks; sentinel `None` means end-of-stream
+    """
     import sys
     import websockets
     url = _ws_url()
     injected_len = 0
     transcript_buf = ""
 
-    async with websockets.connect(url) as ws:
-        await ws.send(json.dumps({"type": "start", "mode": mode, "lang": lang}))
-
-        chunk_size = 16000 * 2  # 0.5s @ 16kHz int16
-        for i in range(0, len(audio), chunk_size):
-            chunk = audio[i:i + chunk_size]
-            await ws.send(json.dumps({
-                "type": "chunk",
-                "data": base64.b64encode(chunk).decode(),
-            }))
-
+    async def _send_loop(ws):
+        if isinstance(audio_source, (bytes, bytearray)):
+            chunk_size = 16000 * 2  # 0.5s @ 16kHz int16
+            for i in range(0, len(audio_source), chunk_size):
+                chunk = audio_source[i:i + chunk_size]
+                await ws.send(json.dumps({
+                    "type": "chunk", "data": base64.b64encode(chunk).decode(),
+                }))
+        else:
+            # asyncio.Queue producing chunks, sentinel None terminates
+            while True:
+                chunk = await audio_source.get()
+                if chunk is None:
+                    break
+                await ws.send(json.dumps({
+                    "type": "chunk", "data": base64.b64encode(chunk).decode(),
+                }))
         await ws.send(json.dumps({"type": "end"}))
+
+    async with websockets.connect(url) as ws:
+        await ws.send(json.dumps({
+            "type": "start", "mode": mode, "lang": lang, "streaming": streaming,
+        }))
+
+        send_task = asyncio.create_task(_send_loop(ws))
 
         async for msg_str in ws:
             msg = json.loads(msg_str)
             mtype = msg.get("type")
 
             if mtype == "transcript":
-                transcript_buf += msg.get("text", "")
-                if msg.get("final"):
+                seg_text = msg.get("text", "")
+                transcript_buf += seg_text
+                # Streaming partial: inject immediately so user sees progress.
+                # `is_partial` is the streaming-mode marker; falling back to the
+                # non-streaming `final` semantics below for buffer mode.
+                if msg.get("is_partial"):
+                    injector.inject_text(seg_text)
+                    injected_len += len(seg_text)
+                elif msg.get("final"):
                     print(f"[aureka] transcript: {transcript_buf}", file=sys.stderr)
                     if mode == "transcribe":
                         injector.inject_text(transcript_buf)
@@ -62,6 +93,8 @@ async def _voice_session(mode: str, lang: str, audio: bytes) -> None:
 
             elif mtype == "done":
                 break
+
+        await send_task
 
     if transcript_buf == "":
         print("[aureka] (no speech detected)", file=sys.stderr)

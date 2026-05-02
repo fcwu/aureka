@@ -143,6 +143,25 @@ python tests/scripts/ws-client-test.py --mode transcribe --audio tests/fixtures/
 | `refined` 超過 5s 才來 | LM Studio 無回應或模型未載 |
 | `done` 不出現 | 沒送 `{"type":"end"}` |
 
+### Streaming 模式 WS 訊息
+
+啟用 streaming：在 `start` 訊息加 `streaming: true`，daemon 走 silero-vad 切句路徑。
+
+```json
+// client → server
+{"type":"start","mode":"refine","lang":"zh","streaming":true}
+{"type":"chunk","data":"<base64 PCM>"}    // 重複多次
+{"type":"end"}
+
+// server → client（streaming）
+{"type":"transcript","text":"今天天氣很好","final":false,"is_partial":true}  // 每段
+{"type":"transcript","text":"我們去公園走走","final":false,"is_partial":true}
+{"type":"refined","text":"今天天氣很好，我們去公園走走。","final":true}
+{"type":"done"}
+```
+
+非 streaming（`streaming:false` 或缺）行為不變：所有 chunks 累積後一次轉錄、不會出現 `is_partial:true` 的 transcript。
+
 ---
 
 ## 7. 環境變數

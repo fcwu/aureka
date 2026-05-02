@@ -4,6 +4,13 @@ import os
 import sys
 
 
+def _wait_for_enter():
+    try:
+        input()
+    except (EOFError, KeyboardInterrupt):
+        pass
+
+
 def _require_config(args):
     if hasattr(args, "config") and args.config:
         os.environ["AUREKA_CONFIG"] = args.config
@@ -99,6 +106,7 @@ def cmd_type(args):
     cfg = get_config()
     mode = args.mode or cfg.hotkey.input_mode
     lang = args.lang or cfg.hotkey.lang
+    streaming = not getattr(args, "no_streaming", False)
 
     # Try to connect to daemon first
     import socket
@@ -115,6 +123,34 @@ def cmd_type(args):
         from aureka import asr, llm
         asr.load_asr(device=args.device)
 
+    if daemon_available and streaming:
+        # Live-streaming: pump chunks from recorder to daemon via asyncio.Queue
+        # while the user is still talking. End-of-stream signaled by user pressing Enter.
+        async def _live_session():
+            queue: asyncio.Queue[bytes | None] = asyncio.Queue()
+            loop = asyncio.get_running_loop()
+
+            def _on_chunk(chunk):
+                # Called from recorder thread; bridge into asyncio queue.
+                loop.call_soon_threadsafe(queue.put_nowait, chunk.tobytes())
+
+            recorder = rec_module.Recorder(mode=cfg.hotkey.mode, on_chunk=_on_chunk)
+            print("[aureka] Recording... press Enter to stop.")
+            recorder.start()
+
+            session_task = asyncio.create_task(
+                _voice_session(mode, lang, queue, streaming=True)
+            )
+
+            await loop.run_in_executor(None, _wait_for_enter)
+            recorder.stop()
+            await queue.put(None)  # signal end-of-stream
+            await session_task
+
+        asyncio.run(_live_session())
+        return
+
+    # Non-streaming or no-daemon path: record fully first, then process
     recorder = rec_module.Recorder(mode=cfg.hotkey.mode)
     print("[aureka] Recording... press Enter to stop.")
     recorder.start()
@@ -129,7 +165,7 @@ def cmd_type(args):
         return
 
     if daemon_available:
-        asyncio.run(_voice_session(mode, lang, audio_data.tobytes()))
+        asyncio.run(_voice_session(mode, lang, audio_data.tobytes(), streaming=False))
     else:
         import numpy as np
         from aureka import asr, injector, llm as llm_mod
@@ -217,6 +253,8 @@ def main():
     p_type = sub.add_parser("type", help="Voice input → text injection")
     p_type.add_argument("--mode", choices=["transcribe", "refine", "translate"])
     p_type.add_argument("--lang", metavar="LANG", help="Language code (e.g. zh, en, ja)")
+    p_type.add_argument("--no-streaming", action="store_true",
+                        help="Disable streaming (record fully then transcribe; older behavior)")
 
     # download
     sub.add_parser(

@@ -1,6 +1,6 @@
 # ASR
-thestage-speechkit>=0.1.0
 faster-whisper>=1.0.0
+silero-vad>=6.0.0
 
 # LLM / VLM
 openai>=1.0.0

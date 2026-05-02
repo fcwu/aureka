@@ -94,6 +94,90 @@ async def process(body: dict):
 
 # ── WebSocket voice input ─────────────────────────────────────────────────────
 
+
+async def _voice_input_buffer(ws: WebSocket) -> list[str] | None:
+    """Buffer mode: collect everything, transcribe once. Returns transcript_parts or None if empty."""
+    audio_chunks: list[np.ndarray] = []
+    async for msg in ws.iter_json():
+        if msg["type"] == "chunk":
+            pcm = np.frombuffer(base64.b64decode(msg["data"]), dtype=np.int16)
+            audio_chunks.append(pcm)
+        elif msg["type"] == "end":
+            break
+
+    if not audio_chunks:
+        await ws.send_json({"type": "done"})
+        return None
+
+    audio = np.concatenate(audio_chunks).astype(np.float32) / 32768.0
+    segments = await asyncio.get_event_loop().run_in_executor(
+        None, lambda: list(asr.transcribe(audio, 16000))
+    )
+    parts: list[str] = []
+    for seg in segments:
+        await ws.send_json({"type": "transcript", "text": seg.text, "final": seg.is_last})
+        parts.append(seg.text)
+    return parts
+
+
+async def _voice_input_streaming(ws: WebSocket) -> list[str] | None:
+    """Streaming mode: VAD-segmented incremental ASR. Returns transcript_parts or None if empty."""
+    from aureka.vad import VadSegmenter
+    seg = VadSegmenter()
+    parts: list[str] = []
+    loop = asyncio.get_event_loop()
+
+    async def _flush_segment(audio_f32: np.ndarray):
+        # Run blocking ASR in a thread so we can keep accepting WS chunks.
+        segments = await loop.run_in_executor(
+            None, lambda: list(asr.transcribe(audio_f32, 16000))
+        )
+        text = "".join(s.text for s in segments)
+        parts.append(text)
+        await ws.send_json({
+            "type": "transcript", "text": text, "final": False, "is_partial": True
+        })
+
+    async for msg in ws.iter_json():
+        if msg["type"] == "chunk":
+            pcm = np.frombuffer(base64.b64decode(msg["data"]), dtype=np.int16)
+            for audio in seg.feed(pcm):
+                await _flush_segment(audio)
+        elif msg["type"] == "end":
+            break
+
+    for audio in seg.flush():
+        await _flush_segment(audio)
+
+    if not parts:
+        await ws.send_json({"type": "done"})
+        return None
+    return parts
+
+
+# silero-vad availability is checked once at startup. If unavailable, all clients
+# fall through to buffer mode (silently, after a single warning log).
+_vad_available: bool | None = None
+_vad_warned = False
+
+
+def _check_vad() -> bool:
+    """Lazy-check silero-vad. Logs a single warning on failure."""
+    global _vad_available, _vad_warned
+    if _vad_available is not None:
+        return _vad_available
+    try:
+        from aureka.vad import VadSegmenter  # noqa: F401
+        _vad_available = True
+    except Exception as e:
+        _vad_available = False
+        if not _vad_warned:
+            print(f"[aureka] streaming ASR unavailable, falling back to buffer mode: {e}",
+                  flush=True)
+            _vad_warned = True
+    return _vad_available
+
+
 @app.websocket("/ws")
 async def voice_input(ws: WebSocket):
     await ws.accept()
@@ -101,28 +185,15 @@ async def voice_input(ws: WebSocket):
         config_msg = await ws.receive_json()
         mode = config_msg.get("mode", "transcribe")
         lang = config_msg.get("lang", "zh")
+        streaming = bool(config_msg.get("streaming", False)) and _check_vad()
 
-        audio_chunks: list[np.ndarray] = []
-        async for msg in ws.iter_json():
-            if msg["type"] == "chunk":
-                pcm = np.frombuffer(base64.b64decode(msg["data"]), dtype=np.int16)
-                audio_chunks.append(pcm)
-            elif msg["type"] == "end":
-                break
+        if streaming:
+            transcript_parts = await _voice_input_streaming(ws)
+        else:
+            transcript_parts = await _voice_input_buffer(ws)
 
-        if not audio_chunks:
-            await ws.send_json({"type": "done"})
-            return
-
-        audio = np.concatenate(audio_chunks).astype(np.float32) / 32768.0
-        segments = await asyncio.get_event_loop().run_in_executor(
-            None, lambda: list(asr.transcribe(audio, 16000))
-        )
-
-        transcript_parts = []
-        for seg in segments:
-            await ws.send_json({"type": "transcript", "text": seg.text, "final": seg.is_last})
-            transcript_parts.append(seg.text)
+        if transcript_parts is None:
+            return  # empty session, done already sent
 
         if mode in ("refine", "translate"):
             from aureka.llm import llm_refine_stream
