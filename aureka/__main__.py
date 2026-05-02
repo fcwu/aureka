@@ -181,6 +181,11 @@ def cmd_ui(args):
     open_settings()
 
 
+def cmd_tray(args):
+    from aureka.tray import run_tray
+    run_tray()
+
+
 def cmd_daemon(args):
     from aureka.daemon import start_daemon, stop_daemon, status_daemon
     if args.action == "start":
@@ -253,6 +258,9 @@ def main():
     # ui
     sub.add_parser("ui", help="Open settings UI (pywebview)")
 
+    # tray
+    sub.add_parser("tray", help="Run system tray menu (pystray)")
+
     # daemon
     p_daemon = sub.add_parser("daemon", help="Manage background daemon")
     p_daemon.add_argument("action", choices=["start", "stop", "status"])
@@ -290,6 +298,7 @@ def main():
         "download": cmd_download,
         "benchmark": cmd_benchmark,
         "ui": cmd_ui,
+        "tray": cmd_tray,
         "daemon": cmd_daemon,
         "autostart": cmd_autostart,
         "_daemon_serve": cmd_daemon_serve,
