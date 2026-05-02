@@ -2,11 +2,11 @@
 
 ## PyPI 發佈
 
-- [ ] 建立 PyPI 帳號（https://pypi.org/account/register/）
-- [ ] 在 PyPI 設定 Trusted Publisher：
+- [x] 建立 PyPI 帳號（https://pypi.org/account/register/）
+- [x] 在 PyPI 設定 Trusted Publisher：
       Project → Publishing → Add trusted publisher
       owner: fcwu / repo: aureka / workflow: publish.yml / env: pypi
-- [ ] 建立 `.github/workflows/publish.yml`（tag `v*` 觸發，OIDC 推 PyPI）
+- [x] 建立 `.github/workflows/publish.yml`（tag `v*` 觸發，OIDC 推 PyPI）
 - [ ] 推第一版：`git tag v0.1.0 && git push origin v0.1.0`
 
 ## 測試補強
