@@ -121,6 +121,16 @@ def cmd_download(args):
         print(f"  {key:16s}  {models.MODEL_REGISTRY[key]:48s}  {path}")
 
 
+def cmd_benchmark(args):
+    from aureka.benchmark import run_benchmark
+    run_benchmark(
+        device=args.device,
+        quick=args.quick,
+        output_path=args.output,
+        skip_llm=args.skip_llm,
+    )
+
+
 def cmd_daemon(args):
     from aureka.daemon import start_daemon, stop_daemon, status_daemon
     if args.action == "start":
@@ -167,6 +177,15 @@ def main():
         help="Pre-download all model weights (Kokoro TTS + Whisper ASR) used at runtime",
     )
 
+    # benchmark
+    p_bench = sub.add_parser("benchmark", help="Measure ASR/TTS/LLM speed and write a Markdown report")
+    p_bench.add_argument("--quick", action="store_true",
+                         help="1 timed run instead of 5 (faster, less stable)")
+    p_bench.add_argument("--output", metavar="PATH",
+                         help="Markdown report path (default: ./benchmark-<host>-<date>.md)")
+    p_bench.add_argument("--skip-llm", action="store_true",
+                         help="Skip LLM benchmark (no LM Studio / Ollama call)")
+
     # daemon
     p_daemon = sub.add_parser("daemon", help="Manage background daemon")
     p_daemon.add_argument("action", choices=["start", "stop", "status"])
@@ -198,6 +217,7 @@ def main():
         "speak": cmd_speak,
         "type": cmd_type,
         "download": cmd_download,
+        "benchmark": cmd_benchmark,
         "daemon": cmd_daemon,
         "_daemon_serve": cmd_daemon_serve,
     }

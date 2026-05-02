@@ -153,3 +153,21 @@ python tests/scripts/ws-client-test.py --mode transcribe --audio tests/fixtures/
 | `AUREKA_DAEMON_PORT` | Daemon HTTP/WS port | `7777` |
 | `AUREKA_LOG_LEVEL` | `debug` / `info` / `warning` | `info` |
 | `AUREKA_TEST_MODE` | 設 `1` 跳過模型載入（加速測試） | — |
+
+---
+
+## 8. Benchmark
+
+量本機 ASR / TTS / LLM 速度，產出可分享的 Markdown 報告：
+
+```bash
+aureka benchmark                        # 1 warm-up + 5 計時，~2-4 分鐘
+aureka benchmark --quick                # 1 warm-up + 1 計時，~30-60 秒
+aureka benchmark --skip-llm             # 不打 LLM
+aureka benchmark --output report.md     # 自訂報告路徑
+aureka --device cpu benchmark           # 強制 CPU
+```
+
+跑時 stdout 顯示即時進度（`[ASR] run 3/5 → 1.23s`），跑完印對齊表格 + 寫 `./benchmark-<host>-<date>.md`。
+個別任務失敗 fail-soft（標 `failed: <reason>` 繼續跑剩下），LLM 失敗也不影響 ASR/TTS 結果。
+ASR 樣本第一次跑時用 Kokoro 合成 ~30s 中文段落 cache 到 `~/.cache/aureka/benchmark/`。

@@ -96,6 +96,39 @@ aureka download
 這會把 Kokoro TTS 與 Whisper ASR 模型一次下載完，並顯示進度條。已下載的檔案會自動跳過。
 HuggingFace cache 路徑可透過 `HF_HOME` 環境變數自訂。
 
+### Benchmark
+
+想知道自己這台機器跑 ASR / TTS / LLM 的速度，或要分享給其他人比較硬體：
+
+```bash
+aureka benchmark              # 完整：每個任務 1 輪 warm-up + 5 輪計時
+aureka benchmark --quick      # 快速：1 輪計時
+aureka benchmark --skip-llm   # 跳過 LLM（沒設或不想測時用）
+```
+
+跑完會在當前目錄產生 `benchmark-<host>-<日期>.md`，包含環境資訊（Aureka 端硬體 + LLM 端設定）與
+ASR / TTS RTF、LLM tokens/s 等指標，可貼到 issue / discussion 跟其他使用者比較。
+
+#### 指標解讀
+
+| Task / Metric | 意思 | 怎麼看 |
+|---------------|------|--------|
+| **ASR RTF** | Real-Time Factor = 轉錄耗時 ÷ 音訊長度 | **越小越好**。`< 1.0` = 比即時還快；`0.1` 表示處理 30 秒音訊只要 3 秒；`> 1.0` 代表跟不上即時，現場語音輸入會卡 |
+| **ASR chars/s** | 每秒可輸出的字元數 | 越大越好；給人對「轉錄速度」的直覺感受 |
+| **TTS RTF** | 合成耗時 ÷ 輸出音訊長度 | **越小越好**。`< 1.0` = 比播放還快（可串流邊合成邊播）；`> 1.0` 表示要先合成完才能播，會有延遲 |
+| **TTS chars/s** | 每秒能合成的字元數 | 越大越好 |
+| **LLM tokens/s** | 串流輸出速度 | **越大越好**。30 token/s 大致是「人讀字的速度」；`< 10` 慢、`30-50` 順暢、`> 100` 即時感 |
+| **LLM TTFT (ms)** | Time To First Token：送出 request 到收到第一個字的延遲 | **越小越好**。`< 200ms` 體感無延遲；`> 1000ms` 互動會明顯卡 |
+| **Cold start ASR/TTS load (s)** | 模型首次載入秒數 | 影響 daemon 第一次啟動 / 第一次 `aureka speak` 的等待時間，跑起來之後就不再付這個成本 |
+
+每個 row 都列 `Median / Min / Max`：看 Median 當代表值，Min/Max 之間差距大代表那台機器抖動明顯（背景有其他 process 競爭、或散熱不穩）。
+
+`status` 欄為 `failed` 表示該任務當下跑不起來（如 LLM 連不上）；其他任務不受影響繼續跑。
+
+#### LLM 數字的注意事項
+
+`tokens/s` 與 `TTFT` 反映的是 **「LLM server + 你載入的模型 + LLM server 端硬體」三者組合**，不是跑 aureka 這台機器本身。比較不同人的 LLM 數字時，請看報告中 LLM endpoint 區塊的 `base_url` 與 `resolved_model` 是否相同。
+
 ---
 
 ## 批次處理
