@@ -212,6 +212,16 @@ def cmd_benchmark(args):
     )
 
 
+def cmd_ui(args):
+    from aureka.ui import open_settings
+    open_settings()
+
+
+def cmd_tray(args):
+    from aureka.tray import run_tray
+    run_tray()
+
+
 def cmd_daemon(args):
     from aureka.daemon import start_daemon, stop_daemon, status_daemon
     if args.action == "start":
@@ -220,6 +230,18 @@ def cmd_daemon(args):
         stop_daemon()
     elif args.action == "status":
         status_daemon()
+
+
+def cmd_autostart(args):
+    from aureka import autostart
+    from aureka.config import get_config
+    cfg = get_config()
+    if args.action == "install":
+        autostart.install(host=cfg.daemon.host, port=cfg.daemon.port)
+    elif args.action == "uninstall":
+        autostart.uninstall()
+    elif args.action == "status":
+        sys.exit(autostart.status())
 
 
 def cmd_daemon_serve(args):
@@ -271,9 +293,19 @@ def main():
     p_bench.add_argument("--skip-llm", action="store_true",
                          help="Skip LLM benchmark (no LM Studio / Ollama call)")
 
+    # ui
+    sub.add_parser("ui", help="Open settings UI (pywebview)")
+
+    # tray
+    sub.add_parser("tray", help="Run system tray menu (pystray)")
+
     # daemon
     p_daemon = sub.add_parser("daemon", help="Manage background daemon")
     p_daemon.add_argument("action", choices=["start", "stop", "status"])
+
+    # autostart
+    p_auto = sub.add_parser("autostart", help="Install/remove launch-at-login for daemon")
+    p_auto.add_argument("action", choices=["install", "uninstall", "status"])
 
     # _daemon_serve (internal, not shown in help)
     p_serve = sub.add_parser("_daemon_serve", help=argparse.SUPPRESS)
@@ -303,7 +335,10 @@ def main():
         "type": cmd_type,
         "download": cmd_download,
         "benchmark": cmd_benchmark,
+        "ui": cmd_ui,
+        "tray": cmd_tray,
         "daemon": cmd_daemon,
+        "autostart": cmd_autostart,
         "_daemon_serve": cmd_daemon_serve,
     }
 

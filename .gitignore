@@ -10,6 +10,7 @@ build/
 *.mp4
 output/
 tmp/
+.worktrees/
 .env
 .claude/settings.local.json
 tests/fixtures/

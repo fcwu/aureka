@@ -36,6 +36,38 @@ def health():
     return {"status": "ok", "version": __version__}
 
 
+@app.post("/reload")
+def reload_endpoint():
+    """Re-read config.toml and refresh in-memory state.
+
+    Live-applied: llm/vlm endpoints (next call rebuilds client with new
+    base_url/api_key/model). Restart-required: asr.model, tts.voice/device,
+    daemon.host/port. The response lists what needs a daemon restart so the
+    UI can warn the user.
+    """
+    from aureka import config as cfg_mod
+    from aureka import llm as llm_mod
+
+    before = cfg_mod.get_config()
+    cfg_mod.reset_config()
+    after = cfg_mod.get_config()
+
+    llm_mod._llm_client = None
+    llm_mod._vlm_client = None
+
+    needs_restart: list[str] = []
+    if before.asr.model != after.asr.model:
+        needs_restart.append("asr.model")
+    for k in ("voice", "lang_code", "device"):
+        if getattr(before.tts, k) != getattr(after.tts, k):
+            needs_restart.append(f"tts.{k}")
+    for k in ("host", "port"):
+        if getattr(before.daemon, k) != getattr(after.daemon, k):
+            needs_restart.append(f"daemon.{k}")
+
+    return {"ok": True, "needs_restart": needs_restart}
+
+
 _tts_lock = asyncio.Lock()
 _tts_loaded = False
 
