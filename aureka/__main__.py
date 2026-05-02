@@ -191,6 +191,18 @@ def cmd_daemon(args):
         status_daemon()
 
 
+def cmd_autostart(args):
+    from aureka import autostart
+    from aureka.config import get_config
+    cfg = get_config()
+    if args.action == "install":
+        autostart.install(host=cfg.daemon.host, port=cfg.daemon.port)
+    elif args.action == "uninstall":
+        autostart.uninstall()
+    elif args.action == "status":
+        sys.exit(autostart.status())
+
+
 def cmd_daemon_serve(args):
     """Internal: actually start the uvicorn server (called by start_daemon())."""
     from aureka.daemon import serve
@@ -245,6 +257,10 @@ def main():
     p_daemon = sub.add_parser("daemon", help="Manage background daemon")
     p_daemon.add_argument("action", choices=["start", "stop", "status"])
 
+    # autostart
+    p_auto = sub.add_parser("autostart", help="Install/remove launch-at-login for daemon")
+    p_auto.add_argument("action", choices=["install", "uninstall", "status"])
+
     # _daemon_serve (internal, not shown in help)
     p_serve = sub.add_parser("_daemon_serve", help=argparse.SUPPRESS)
     p_serve.add_argument("--host", default="127.0.0.1")
@@ -275,6 +291,7 @@ def main():
         "benchmark": cmd_benchmark,
         "ui": cmd_ui,
         "daemon": cmd_daemon,
+        "autostart": cmd_autostart,
         "_daemon_serve": cmd_daemon_serve,
     }
 
