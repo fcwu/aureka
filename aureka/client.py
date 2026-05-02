@@ -88,6 +88,15 @@ async def _voice_session(
                 injector.replace_text(injected_len, new_text)
                 injected_len = len(new_text)
 
+            elif mtype == "info":
+                phase = msg.get("phase", "")
+                phase_label = {
+                    "transcribing": "transcribing audio...",
+                    "finalizing": "finalizing last segment...",
+                    "refining": "refining with LLM...",
+                }.get(phase, phase or "(info)")
+                print(f"[aureka] {phase_label}", file=sys.stderr)
+
             elif mtype == "warning":
                 print(f"[aureka] {msg.get('message','(warning)')}", file=sys.stderr)
 

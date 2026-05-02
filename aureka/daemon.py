@@ -141,6 +141,7 @@ async def _voice_input_buffer(ws: WebSocket) -> list[str] | None:
         await ws.send_json({"type": "done"})
         return None
 
+    await ws.send_json({"type": "info", "phase": "transcribing"})
     audio = np.concatenate(audio_chunks).astype(np.float32) / 32768.0
     segments = await asyncio.get_event_loop().run_in_executor(
         None, lambda: list(asr.transcribe(audio, 16000))
@@ -178,8 +179,11 @@ async def _voice_input_streaming(ws: WebSocket) -> list[str] | None:
         elif msg["type"] == "end":
             break
 
-    for audio in seg.flush():
-        await _flush_segment(audio)
+    leftover = seg.flush()
+    if leftover:
+        await ws.send_json({"type": "info", "phase": "finalizing"})
+        for audio in leftover:
+            await _flush_segment(audio)
 
     if not parts:
         await ws.send_json({"type": "done"})
@@ -230,6 +234,7 @@ async def voice_input(ws: WebSocket):
         if mode in ("refine", "translate"):
             from aureka.llm import llm_refine_stream
             transcript = " ".join(transcript_parts)
+            await ws.send_json({"type": "info", "phase": "refining"})
             accumulated = ""
             llm_failed = False
             try:
