@@ -39,12 +39,17 @@ def run_pipeline(
         print(f"[2/5] Extracting keyframes (every {frame_interval}s) ...")
         frames = ffmpeg_utils.extract_keyframes(input_path, Path(tmpdir) / "frames", frame_interval)
 
-        print(f"[3/5] Running ASR ...")
+        print(f"[3/5] Loading ASR model ...", flush=True)
         asr.load_asr(device=device)
         audio_data, sample_rate = sf.read(str(audio_path), dtype="float32")
         if audio_data.ndim > 1:
             audio_data = audio_data[:, 0]
-        segments = asr.transcribe(audio_data, sample_rate)
+        print(f"[3/5] Transcribing ({len(audio_data) / sample_rate:.0f}s audio) ...", flush=True)
+        segments = []
+        for seg in asr.transcribe(audio_data, sample_rate):
+            m, s = divmod(int(seg.start), 60)
+            print(f"  [{m:02d}:{s:02d}] {seg.text.strip()}", flush=True)
+            segments.append(seg)
 
         print(f"[4/5] Describing frames with VLM ({len(frames)} frames) ...")
         frame_descriptions: list[tuple[float, str]] = []

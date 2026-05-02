@@ -32,7 +32,8 @@ app = FastAPI(title="Aureka Daemon", lifespan=_lifespan)
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "version": "0.1.0"}
+    from aureka import __version__
+    return {"status": "ok", "version": __version__}
 
 
 @app.post("/process")
@@ -79,7 +80,7 @@ async def voice_input(ws: WebSocket):
 
         audio = np.concatenate(audio_chunks).astype(np.float32) / 32768.0
         segments = await asyncio.get_event_loop().run_in_executor(
-            None, lambda: asr.transcribe(audio, 16000)
+            None, lambda: list(asr.transcribe(audio, 16000))
         )
 
         transcript_parts = []
