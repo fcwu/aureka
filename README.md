@@ -416,53 +416,6 @@ pytest tests/ -v -m integration
 pytest tests/ -v -m e2e
 ```
 
-## 專案結構
-
-```
-aureka/
-├── aureka/
-│   ├── __main__.py       # CLI 入口（process / speak / type / download / benchmark / ui / tray / autostart / listen / doctor / daemon）
-│   ├── config.py         # config.toml 載入（AUREKA_CONFIG env var）
-│   ├── device.py         # 裝置偵測（cuda / mps / cpu）
-│   ├── asr.py            # faster-whisper 封裝（model 由 [asr] config 決定）
-│   ├── vad.py            # silero-vad 封裝，給 streaming ASR 切句
-│   ├── llm.py            # LLM / VLM 呼叫（OpenAI-compatible）
-│   ├── tts.py            # Kokoro TTS 封裝 + Markdown 前處理
-│   ├── models.py         # MODEL_REGISTRY + download_all（aureka download 用）
-│   ├── benchmark.py      # ASR/TTS/LLM 速度量測 + Markdown 報告
-│   ├── pipeline.py       # 批次流程編排
-│   ├── daemon.py         # FastAPI daemon（WS /ws + POST /speak / /process / /reload）
-│   ├── recorder.py       # 麥克風錄音（hold / toggle / VAD）
-│   ├── audio_loopback.py # 系統音訊抓取（aureka listen / doctor audio）
-│   ├── hotkey.py         # 全域熱鍵（pynput）
-│   ├── client.py         # 語音輸入 client core（streaming WS + 注入）
-│   ├── tray.py           # 系統托盤入口（pystray）
-│   ├── ui.py             # 設定 UI（pywebview，aureka ui）
-│   ├── autostart.py      # 開機自啟動（launchd / Task Scheduler）
-│   ├── injector.py       # 文字注入（xdotool / 剪貼簿）
-│   ├── ffmpeg_utils.py   # 音訊提取 + 關鍵畫面截取
-│   └── formatter.py      # Markdown 輸出格式化
-├── tests/
-│   ├── conftest.py               # 共用 fixtures（mock server、config）
-│   ├── test_device.py            # unit: 裝置偵測
-│   ├── test_tts.py               # unit: Markdown 前處理
-│   ├── test_injector.py          # unit: 文字注入邏輯
-│   ├── test_llm.py               # integration: LLM/VLM client
-│   ├── test_pipeline.py          # integration: 批次流水線
-│   ├── test_daemon.py            # integration: HTTP + WebSocket
-│   ├── test_e2e.py               # e2e: daemon 程序管理
-│   ├── fixtures/                 # 測試音訊（gen-test-audio.py 生成）
-│   └── scripts/
-│       ├── gen-test-audio.py     # 生成測試 WAV fixtures
-│       ├── mock-llm-server.py    # mock OpenAI-compatible server
-│       └── ws-client-test.py     # WebSocket 手動測試工具
-├── docs/
-│   └── design.md
-├── config.example.toml   # 設定範本
-├── requirements.txt
-└── requirements-dev.txt
-```
-
 ## 平台支援
 
 | 平台 | 語音輸入 | 批次處理 | ASR 加速 | TTS 加速 |
