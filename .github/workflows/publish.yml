@@ -44,3 +44,29 @@ jobs:
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
+
+  release:
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0  # full history so --generate-notes can diff tags
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag="${GITHUB_REF#refs/tags/}"
+          # Use the annotated tag body when it has substantial release notes
+          # (more than just the commit subject + Co-Authored-By). Otherwise
+          # let GitHub auto-generate notes from commits since the previous tag.
+          body=$(git tag -l "$tag" --format='%(contents)' | sed '/^Co-Authored-By:/d' | sed '/^$/d')
+          line_count=$(echo "$body" | wc -l)
+          if [ "$line_count" -gt 3 ]; then
+            gh release create "$tag" --title "$tag" --notes-from-tag
+          else
+            gh release create "$tag" --title "$tag" --generate-notes
+          fi
