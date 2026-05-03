@@ -9,8 +9,6 @@
 | **批次處理** | 影片／音訊 → 結構化 Markdown，可丟入知識庫 | `aureka process` |
 | **語音輸入** | 全域熱鍵 → 說話 → 文字出現在游標位置 | 常駐 daemon + 熱鍵 |
 
----
-
 ## 安裝
 
 ### PyPI（推薦）
@@ -32,7 +30,7 @@ pip install "aureka[all]"           # 以上全部（Windows 請用下方指令�
 **Windows 用戶**：Kokoro TTS 目前無 Windows wheel，請跳過 `[tts]`：
 
 ```powershell
-pip install "aureka[asr,batch,voice]"
+pip install "aureka[asr,batch,voice,ui]"
 ```
 
 ### 從原始碼安裝
@@ -100,9 +98,18 @@ aureka type --no-streaming
 
 技術上是 daemon 端用 silero-vad 偵測語句邊界，每段 close 時立刻轉錄並推 partial 回 client。silero-vad 無法載入時自動 fallback 回 buffer 模式。
 
+過程中 daemon 會推 phase 事件回 client，stderr 會看到 `[aureka] transcribing audio... / finalizing last segment... / refining with LLM...`，方便判斷卡在哪一步。
+
 ### 升級提醒（從 0.1.x → 0.2.x）
 
-ASR 預設模型從 `large-v3` 改為 `medium`：較小、較快，但中文精度小幅降低。要回 `large-v3` 在 `config.toml` 設 `[asr]\nmodel = "large-v3"` 即可。`large-v3` 的舊 cache（~3GB）不會自動刪，要省空間執行 `huggingface-cli delete-cache`。同時移除了 `[asr-thewhisper]` extra（從未真正運作），請改用標準 `[asr]` extra。
+ASR 預設模型從 `large-v3` 改為 `medium`：較小、較快，但中文精度小幅降低。要回 `large-v3`，在 `config.toml` 加：
+
+```toml
+[asr]
+model = "large-v3"
+```
+
+`large-v3` 的舊 cache（~3GB）不會自動刪，要省空間執行 `huggingface-cli delete-cache`。同時移除了 `[asr-thewhisper]` extra（從未真正運作），請改用標準 `[asr]` extra。
 
 ### 選 ASR 模型大小
 
@@ -163,8 +170,6 @@ ASR / TTS RTF、LLM tokens/s 等指標，可貼到 issue / discussion 跟其他�
 
 `tokens/s` 與 `TTFT` 反映的是 **「LLM server + 你載入的模型 + LLM server 端硬體」三者組合**，不是跑 aureka 這台機器本身。比較不同人的 LLM 數字時，請看報告中 LLM endpoint 區塊的 `base_url` 與 `resolved_model` 是否相同。
 
----
-
 ## 批次處理
 
 ### 用法
@@ -203,8 +208,6 @@ processed_at: 2026-05-01T14:30:00
 
 完成後可直接丟入 mykb `inbox/` 走 triage → ingest 流程。
 
----
-
 ## TTS 回讀
 
 ```bash
@@ -216,9 +219,12 @@ aureka speak --file path/to/note.md
 
 # 存成 WAV 不播放
 aureka speak "測試" --output out.wav
+
+# 調整語速（1.0 = 正常、1.3 = 快、0.8 = 慢；也可在 [tts] speed 設預設）
+aureka speak "再快一點" --speed 1.3
 ```
 
----
+Daemon 在跑時 `aureka speak` 會打 daemon 的 `POST /speak` 端點共用已暖好的 Kokoro pipeline；daemon 沒在跑會 fallback 到本地冷啟動。
 
 ## 語音輸入（Typeless-like）
 
@@ -278,8 +284,6 @@ lang       = "zh"
 | `refine` | 去除語氣詞、修正語法 | +1–2s |
 | `translate` | 翻譯成指定語言 | +1–2s |
 
----
-
 ## 設定 UI（`aureka ui`）
 
 ```bash
@@ -300,8 +304,6 @@ aureka ui          # 開設定視窗（pywebview）
 pip install "aureka[ui]"   # pywebview + tomlkit
 ```
 
----
-
 ## 開機自動啟動（`aureka autostart`）
 
 跨平台把 `aureka tray` 註冊為登入時自動啟動：
@@ -318,8 +320,6 @@ aureka autostart status      # 查詢狀態
 | Windows | Task Scheduler | task name `Aureka`（at-logon） |
 
 啟動的命令是 `aureka tray`——tray 自動把 daemon 拉起，所以登入後 menu bar / system tray 出現 icon、daemon 同時在背景就緒、按下熱鍵立即可用。Quit-from-menu 不會被 launchd 重新拉起；crash 才會。
-
----
 
 ## 快速測試（不需真實 GPU 或模型）
 
@@ -343,7 +343,7 @@ python tests/scripts/mock-llm-server.py --port 11434 &
 ```bash
 AUREKA_TEST_MODE=1 AUREKA_CONFIG=tests/config.test.toml aureka daemon start
 curl http://127.0.0.1:7777/health
-# → {"status":"ok","version":"0.1.0"}
+# → {"status":"ok","version":"0.2.0"}
 ```
 
 ### Step 4：測試 WebSocket 語音輸入
@@ -377,8 +377,6 @@ AUREKA_TEST_MODE=1 AUREKA_CONFIG=tests/config.test.toml \
 # → /tmp/aureka-out/YYYYMMDD-silence-1s.md
 ```
 
----
-
 ## 執行測試
 
 ```bash
@@ -395,24 +393,28 @@ pytest tests/ -v -m integration
 pytest tests/ -v -m e2e
 ```
 
----
-
 ## 專案結構
 
 ```
 aureka/
 ├── aureka/
-│   ├── __main__.py       # CLI 入口（process / speak / type / daemon）
+│   ├── __main__.py       # CLI 入口（process / speak / type / download / benchmark / ui / tray / autostart / daemon …）
 │   ├── config.py         # config.toml 載入（AUREKA_CONFIG env var）
 │   ├── device.py         # 裝置偵測（cuda / mps / cpu）
 │   ├── asr.py            # faster-whisper 封裝（model 由 [asr] config 決定）
+│   ├── vad.py            # silero-vad 封裝，給 streaming ASR 切句
 │   ├── llm.py            # LLM / VLM 呼叫（OpenAI-compatible）
 │   ├── tts.py            # Kokoro TTS 封裝 + Markdown 前處理
+│   ├── models.py         # MODEL_REGISTRY + download_all（aureka download 用）
+│   ├── benchmark.py      # ASR/TTS/LLM 速度量測 + Markdown 報告
 │   ├── pipeline.py       # 批次流程編排
-│   ├── daemon.py         # FastAPI daemon（WebSocket /ws + HTTP）
+│   ├── daemon.py         # FastAPI daemon（WS /ws + POST /speak / /process / /reload）
 │   ├── recorder.py       # 麥克風錄音（hold / toggle / VAD）
 │   ├── hotkey.py         # 全域熱鍵（pynput）
-│   ├── client.py         # 語音輸入 client（pystray + WebSocket）
+│   ├── client.py         # 語音輸入 client core（streaming WS + 注入）
+│   ├── tray.py           # 系統托盤入口（pystray）
+│   ├── ui.py             # 設定 UI（pywebview，aureka ui）
+│   ├── autostart.py      # 開機自啟動（launchd / Task Scheduler）
 │   ├── injector.py       # 文字注入（xdotool / 剪貼簿）
 │   ├── ffmpeg_utils.py   # 音訊提取 + 關鍵畫面截取
 │   └── formatter.py      # Markdown 輸出格式化
@@ -437,8 +439,6 @@ aureka/
 └── requirements-dev.txt
 ```
 
----
-
 ## 平台支援
 
 | 平台 | 語音輸入 | 批次處理 | ASR 加速 | TTS 加速 |
@@ -450,8 +450,6 @@ aureka/
 
 > WSL2 為開發環境，GPU 不可用，所有測試以 CPU + mock 模式執行。
 
----
-
 ## 環境變數
 
 | 變數 | 說明 | 預設 |
@@ -459,8 +457,7 @@ aureka/
 | `AUREKA_CONFIG` | config.toml 路徑 | `./config.toml` |
 | `AUREKA_TEST_MODE` | 設 `1` 跳過模型載入（測試加速） | — |
 | `AUREKA_LOG_LEVEL` | `debug` / `info` / `warning` | `info` |
-
----
+| `HF_HOME` / `HF_HUB_CACHE` | HuggingFace cache 路徑（aureka download 會吃） | `~/.cache/huggingface` |
 
 ## License
 
