@@ -2,12 +2,59 @@
 
 > aural + eureka — 聽到，即發現知識
 
-本機 AI 語音處理平台，兩個核心使用模式：
+本機 AI 語音處理平台。**所有 ASR / TTS / LLM 都跑在自己機器**（接 LM Studio / Ollama / vLLM），原始音訊不離開。
 
-| 模式 | 說明 | 觸發方式 |
-|------|------|----------|
-| **批次處理** | 影片／音訊 → 結構化 Markdown，可丟入知識庫 | `aureka process` |
-| **語音輸入** | 全域熱鍵 → 說話 → 文字出現在游標位置 | 常駐 daemon + 熱鍵 |
+四個核心能力：
+
+| 指令 | 場景 | 特色 |
+|------|------|------|
+| `aureka type` | 講話 → 直接打到任何 app 游標 | Streaming 邊講邊出字；LLM 修標點 / 刪贅字 / 翻譯 |
+| `aureka listen` | 即時轉錄系統音訊（會議、影片、Podcast） | 跨平台 loopback；輸出檔 / 即時視窗 / mic + system 雙軌 |
+| `aureka speak` | TTS 朗讀文字或 Markdown 檔 | Kokoro 中英雙語；daemon 共用 pipeline 低延遲 |
+| `aureka process` | 影片／音訊批次 → 結構化 Markdown | ASR + VLM 截圖描述 + LLM 摘要，可丟入知識庫 |
+
+附帶：`aureka ui` 設定視窗 · `aureka tray` 系統托盤 · `aureka autostart` 登入自啟 · `aureka benchmark` 速度評測 · `aureka download` 一次抓所有模型。
+
+<!-- @import "[TOC]" {cmd="toc" depthFrom=2 depthTo=3 orderedList=false} -->
+
+<!-- code_chunk_output -->
+
+- [安裝](#安裝)
+  - [PyPI（推薦）](#pypi推薦)
+  - [從原始碼安裝](#從原始碼安裝)
+  - [Python 版本](#python-版本)
+  - [PyTorch（依平台）](#pytorch依平台)
+  - [ffmpeg（批次處理必要）](#ffmpeg批次處理必要)
+  - [設定檔](#設定檔)
+  - [即時轉錄（streaming）](#即時轉錄streaming)
+  - [選 ASR 模型大小](#選-asr-模型大小)
+  - [預先下載模型（建議）](#預先下載模型建議)
+  - [Benchmark](#benchmark)
+- [批次處理](#批次處理)
+  - [用法](#用法)
+  - [輸出](#輸出)
+- [TTS 回讀](#tts-回讀)
+- [語音輸入（Typeless-like）](#語音輸入typeless-like)
+  - [啟動 Daemon](#啟動-daemon)
+  - [啟動語音輸入 Client](#啟動語音輸入-client)
+  - [錄音模式（config.toml）](#錄音模式configtoml)
+  - [AI 後處理模式](#ai-後處理模式)
+- [設定 UI（`aureka ui`）](#設定-uiaureka-ui)
+- [開機自動啟動（`aureka autostart`）](#開機自動啟動aureka-autostart)
+- [系統音訊轉錄（`aureka listen`）](#系統音訊轉錄aureka-listen)
+- [診斷（`aureka doctor`）](#診斷aureka-doctor)
+- [快速測試（不需真實 GPU 或模型）](#快速測試不需真實-gpu-或模型)
+  - [Step 1：生成測試音訊](#step-1生成測試音訊)
+  - [Step 2：啟動 mock LLM server](#step-2啟動-mock-llm-server)
+  - [Step 3：啟動 daemon（測試模式，跳過模型載入）](#step-3啟動-daemon測試模式跳過模型載入)
+  - [Step 4：測試 WebSocket 語音輸入](#step-4測試-websocket-語音輸入)
+  - [Step 5：測試批次處理](#step-5測試批次處理)
+- [執行測試](#執行測試)
+- [平台支援](#平台支援)
+- [環境變數](#環境變數)
+- [License](#license)
+
+<!-- /code_chunk_output -->
 
 ## 安裝
 
@@ -48,11 +95,11 @@ pip install -r requirements-dev.txt   # 測試用
 
 ### PyTorch（依平台）
 
-| 平台 | 指令 |
-|------|------|
-| NVIDIA GPU（Linux / Windows） | `pip install torch --index-url https://download.pytorch.org/whl/cu121` |
+| 平台                                         | 指令                                                                     |
+| -------------------------------------------- | ------------------------------------------------------------------------ |
+| NVIDIA GPU（Linux / Windows）                | `pip install torch --index-url https://download.pytorch.org/whl/cu121`   |
 | AMD GPU（**僅 Linux**，ROCm 不支援 Windows） | `pip install torch --index-url https://download.pytorch.org/whl/rocm6.1` |
-| Apple Silicon / CPU only | `pip install torch` |
+| Apple Silicon / CPU only                     | `pip install torch`                                                      |
 
 > **Windows 用戶**：只支援 NVIDIA CUDA 或 CPU。若不確定，直接 `pip install torch` 即可（CPU 模式）。
 
@@ -87,6 +134,7 @@ cp config.example.toml config.toml
 `aureka type` 預設啟用 streaming：daemon 端用 silero-vad 切句，每段 close 立刻轉錄並推回 client。
 
 行為依 mode 而異：
+
 - **`transcribe` 模式**（純轉錄）：partial 文字直接打到游標，邊講邊出現
 - **`refine` / `translate` 模式**：partial 文字**不**打到游標（避免你的草稿先被 raw 字污染、再被 LLM 改寫造成 flicker），只在 terminal 印 `[aureka] partial: ...` 當進度回饋；最終 LLM-refined 文字一次寫入草稿
 
@@ -104,13 +152,13 @@ aureka type --no-streaming
 
 `config.toml` 的 `[asr] model` 欄位決定 faster-whisper 用哪個 size：
 
-| Model | 大小 | RTF（M3 MPS 為例） | 中文精度 | 適合 |
-|-------|------|-------------------|---------|------|
-| `tiny` / `base` | 75 / 145 MB | < 0.1 | 低 | 老機器 / 只測試 |
-| `small` | 460 MB | ~0.2 | 中 | 入門電腦 |
-| **`medium`**（預設） | 1.5 GB | ~0.4 | 高 | 中等 GPU、中等 Mac |
-| `large-v3` | 3 GB | > 1.0 | 最高 | 高階 GPU 或樂意等 |
-| `large-v3-turbo` | ~1.5 GB | ~0.3 | 接近 large-v3 | 想要 large 精度但更快 |
+| Model                | 大小        | RTF（M3 MPS 為例） | 中文精度      | 適合                  |
+| -------------------- | ----------- | ------------------ | ------------- | --------------------- |
+| `tiny` / `base`      | 75 / 145 MB | < 0.1              | 低            | 老機器 / 只測試       |
+| `small`              | 460 MB      | ~0.2               | 中            | 入門電腦              |
+| **`medium`**（預設） | 1.5 GB      | ~0.4               | 高            | 中等 GPU、中等 Mac    |
+| `large-v3`           | 3 GB        | > 1.0              | 最高          | 高階 GPU 或樂意等     |
+| `large-v3-turbo`     | ~1.5 GB     | ~0.3               | 接近 large-v3 | 想要 large 精度但更快 |
 
 跑 `aureka benchmark --quick --skip-llm` 看自己機器的 RTF 再決定。改完 config 後重跑 `aureka download` 會抓對應 model；舊 model cache 不會自動刪，要省空間用 `huggingface-cli delete-cache`。
 
@@ -141,15 +189,15 @@ ASR / TTS RTF、LLM tokens/s 等指標，可貼到 issue / discussion 跟其他�
 
 #### 指標解讀
 
-| Task / Metric | 意思 | 怎麼看 |
-|---------------|------|--------|
-| **ASR RTF** | Real-Time Factor = 轉錄耗時 ÷ 音訊長度 | **越小越好**。`< 1.0` = 比即時還快；`0.1` 表示處理 30 秒音訊只要 3 秒；`> 1.0` 代表跟不上即時，現場語音輸入會卡 |
-| **ASR chars/s** | 每秒可輸出的字元數 | 越大越好；給人對「轉錄速度」的直覺感受 |
-| **TTS RTF** | 合成耗時 ÷ 輸出音訊長度 | **越小越好**。`< 1.0` = 比播放還快（可串流邊合成邊播）；`> 1.0` 表示要先合成完才能播，會有延遲 |
-| **TTS chars/s** | 每秒能合成的字元數 | 越大越好 |
-| **LLM tokens/s** | 串流輸出速度 | **越大越好**。30 token/s 大致是「人讀字的速度」；`< 10` 慢、`30-50` 順暢、`> 100` 即時感 |
-| **LLM TTFT (ms)** | Time To First Token：送出 request 到收到第一個字的延遲 | **越小越好**。`< 200ms` 體感無延遲；`> 1000ms` 互動會明顯卡 |
-| **Cold start ASR/TTS load (s)** | 模型首次載入秒數 | 影響 daemon 第一次啟動 / 第一次 `aureka speak` 的等待時間，跑起來之後就不再付這個成本 |
+| Task / Metric                   | 意思                                                   | 怎麼看                                                                                                          |
+| ------------------------------- | ------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------- |
+| **ASR RTF**                     | Real-Time Factor = 轉錄耗時 ÷ 音訊長度                 | **越小越好**。`< 1.0` = 比即時還快；`0.1` 表示處理 30 秒音訊只要 3 秒；`> 1.0` 代表跟不上即時，現場語音輸入會卡 |
+| **ASR chars/s**                 | 每秒可輸出的字元數                                     | 越大越好；給人對「轉錄速度」的直覺感受                                                                          |
+| **TTS RTF**                     | 合成耗時 ÷ 輸出音訊長度                                | **越小越好**。`< 1.0` = 比播放還快（可串流邊合成邊播）；`> 1.0` 表示要先合成完才能播，會有延遲                  |
+| **TTS chars/s**                 | 每秒能合成的字元數                                     | 越大越好                                                                                                        |
+| **LLM tokens/s**                | 串流輸出速度                                           | **越大越好**。30 token/s 大致是「人讀字的速度」；`< 10` 慢、`30-50` 順暢、`> 100` 即時感                        |
+| **LLM TTFT (ms)**               | Time To First Token：送出 request 到收到第一個字的延遲 | **越小越好**。`< 200ms` 體感無延遲；`> 1000ms` 互動會明顯卡                                                     |
+| **Cold start ASR/TTS load (s)** | 模型首次載入秒數                                       | 影響 daemon 第一次啟動 / 第一次 `aureka speak` 的等待時間，跑起來之後就不再付這個成本                           |
 
 每個 row 都列 `Median / Min / Max`：看 Median 當代表值，Min/Max 之間差距大代表那台機器抖動明顯（背景有其他 process 競爭、或散熱不穩）。
 
@@ -189,9 +237,13 @@ processed_at: 2026-05-01T14:30:00
 # <自動萃取的標題>
 
 ## 摘要
+
 ## 重點
+
 ## 逐段紀錄
+
 ## 視覺內容
+
 ## 原始轉錄
 ```
 
@@ -259,19 +311,19 @@ input_mode = "refine"           # transcribe / refine / translate
 lang       = "zh"
 ```
 
-| 模式 | 說明 |
-|------|------|
+| 模式             | 說明                           |
+| ---------------- | ------------------------------ |
 | `hold-to-record` | 按住熱鍵錄音，放開停止（預設） |
-| `toggle` | 按一下開始，再按停止 |
-| `vad` | 偵測靜音自動停止 |
+| `toggle`         | 按一下開始，再按停止           |
+| `vad`            | 偵測靜音自動停止               |
 
 ### AI 後處理模式
 
-| 模式 | 說明 | 額外延遲 |
-|------|------|----------|
-| `transcribe` | 直接注入轉錄文字 | 0 |
-| `refine` | 去除語氣詞、修正語法 | +1–2s |
-| `translate` | 翻譯成指定語言 | +1–2s |
+| 模式         | 說明                 | 額外延遲 |
+| ------------ | -------------------- | -------- |
+| `transcribe` | 直接注入轉錄文字     | 0        |
+| `refine`     | 去除語氣詞、修正語法 | +1–2s    |
+| `translate`  | 翻譯成指定語言       | +1–2s    |
 
 ## 設定 UI（`aureka ui`）
 
@@ -303,10 +355,10 @@ aureka autostart uninstall   # 移除
 aureka autostart status      # 查詢狀態
 ```
 
-| 平台 | 機制 | 寫入位置 |
-|------|------|----------|
-| macOS | launchd user agent | `~/Library/LaunchAgents/com.aureka.daemon.plist` |
-| Windows | Task Scheduler | task name `Aureka`（at-logon） |
+| 平台    | 機制               | 寫入位置                                         |
+| ------- | ------------------ | ------------------------------------------------ |
+| macOS   | launchd user agent | `~/Library/LaunchAgents/com.aureka.daemon.plist` |
+| Windows | Task Scheduler     | task name `Aureka`（at-logon）                   |
 
 啟動的命令是 `aureka tray`——tray 自動把 daemon 拉起，所以登入後 menu bar / system tray 出現 icon、daemon 同時在背景就緒、按下熱鍵立即可用。Quit-from-menu 不會被 launchd 重新拉起；crash 才會。
 
@@ -326,11 +378,11 @@ aureka listen --device "BlackHole 2ch"   # 指定 loopback 裝置（覆蓋自動
 
 預設裝置是平台原生的 loopback：
 
-| 平台 | 預設來源 | 額外要裝 |
-|------|---------|---------|
-| macOS | BlackHole / Loopback / Aggregate device | [BlackHole](https://github.com/ExistentialAudio/BlackHole)（免費） |
-| Windows | WASAPI loopback | 內建 |
-| Linux | PulseAudio / PipeWire monitor | 內建（多數發行版） |
+| 平台    | 預設來源                                | 額外要裝                                                           |
+| ------- | --------------------------------------- | ------------------------------------------------------------------ |
+| macOS   | BlackHole / Loopback / Aggregate device | [BlackHole](https://github.com/ExistentialAudio/BlackHole)（免費） |
+| Windows | WASAPI loopback                         | 內建                                                               |
+| Linux   | PulseAudio / PipeWire monitor           | 內建（多數發行版）                                                 |
 
 `config.toml` 的 `[listen]` 段可設預設值（mode / target_lang / window / out_path / device）。Ctrl+C 結束。
 
@@ -418,22 +470,22 @@ pytest tests/ -v -m e2e
 
 ## 平台支援
 
-| 平台 | 語音輸入 | 批次處理 | ASR 加速 | TTS 加速 |
-|------|---------|---------|---------|---------|
-| NVIDIA Linux | ✅ | ✅ | CUDA (faster-whisper) | CUDA (Kokoro) |
-| AMD Linux | ✅ | ✅ | ROCm (faster-whisper) | ROCm (Kokoro) |
-| Apple Silicon | ✅ | ✅ | CPU (faster-whisper) | MPS (Kokoro) |
-| CPU only | ✅ | ✅ | CPU (faster-whisper) | CPU (Kokoro) |
+| 平台          | 語音輸入 | 批次處理 | ASR 加速              | TTS 加速      |
+| ------------- | -------- | -------- | --------------------- | ------------- |
+| NVIDIA Linux  | ✅       | ✅       | CUDA (faster-whisper) | CUDA (Kokoro) |
+| AMD Linux     | ✅       | ✅       | ROCm (faster-whisper) | ROCm (Kokoro) |
+| Apple Silicon | ✅       | ✅       | CPU (faster-whisper)  | MPS (Kokoro)  |
+| CPU only      | ✅       | ✅       | CPU (faster-whisper)  | CPU (Kokoro)  |
 
 > WSL2 為開發環境，GPU 不可用，所有測試以 CPU + mock 模式執行。
 
 ## 環境變數
 
-| 變數 | 說明 | 預設 |
-|------|------|------|
-| `AUREKA_CONFIG` | config.toml 路徑 | `./config.toml` |
-| `AUREKA_TEST_MODE` | 設 `1` 跳過模型載入（測試加速） | — |
-| `AUREKA_LOG_LEVEL` | `debug` / `info` / `warning` | `info` |
+| 變數                       | 說明                                           | 預設                   |
+| -------------------------- | ---------------------------------------------- | ---------------------- |
+| `AUREKA_CONFIG`            | config.toml 路徑                               | `./config.toml`        |
+| `AUREKA_TEST_MODE`         | 設 `1` 跳過模型載入（測試加速）                | —                      |
+| `AUREKA_LOG_LEVEL`         | `debug` / `info` / `warning`                   | `info`                 |
 | `HF_HOME` / `HF_HUB_CACHE` | HuggingFace cache 路徑（aureka download 會吃） | `~/.cache/huggingface` |
 
 ## License
