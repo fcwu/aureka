@@ -249,9 +249,10 @@ aureka type --mode translate --lang en   # 說中文，輸出英文
 或啟動系統托盤 client（有 GUI 圖示，可右鍵切換模式）：
 
 ```bash
-python -m aureka._daemon_serve --host 127.0.0.1 --port 7777 &
-python -c "from aureka.client import start_tray; start_tray()"
+aureka tray
 ```
+
+`aureka tray` 啟動時若 daemon 沒在跑會**自動拉起**，所以不必再先 `aureka daemon start`。Quit 只關 tray、daemon 留著。
 
 ### 錄音模式（config.toml）
 
@@ -276,6 +277,47 @@ lang       = "zh"
 | `transcribe` | 直接注入轉錄文字 | 0 |
 | `refine` | 去除語氣詞、修正語法 | +1–2s |
 | `translate` | 翻譯成指定語言 | +1–2s |
+
+---
+
+## 設定 UI（`aureka ui`）
+
+```bash
+aureka ui          # 開設定視窗（pywebview）
+```
+
+涵蓋 LLM / VLM / ASR / TTS / Hotkey / Daemon / Models / Tools 八個分頁。
+
+- **自動儲存**：欄位離開焦點 / 按 Enter / select 改變即寫回 `config.toml`（保留註解）；daemon 在線會自動 `/reload`，需要重啟的欄位會在狀態列警告。
+- **Models 分頁**：顯示 Kokoro 與 faster-whisper 是否已下載 + 大小，可直接按下載並看進度條。
+- **Tools 分頁**：跑 quick benchmark，跑完依結果建議調整 `tts.device` / `asr.model` / `llm.thinking_budget`，按 Apply 就填到對應欄位。
+- **Port Auto / Hotkey Press…**：兩個小按鈕分別自動找空 port、捕捉鍵盤組合填到 `daemon.port` / `hotkey.trigger`。
+- 沒有 Save / Close 按鈕——靠系統視窗框關閉。
+
+需要先安裝：
+
+```bash
+pip install "aureka[ui]"   # pywebview + tomlkit
+```
+
+---
+
+## 開機自動啟動（`aureka autostart`）
+
+跨平台把 `aureka tray` 註冊為登入時自動啟動：
+
+```bash
+aureka autostart install     # 安裝
+aureka autostart uninstall   # 移除
+aureka autostart status      # 查詢狀態
+```
+
+| 平台 | 機制 | 寫入位置 |
+|------|------|----------|
+| macOS | launchd user agent | `~/Library/LaunchAgents/com.aureka.daemon.plist` |
+| Windows | Task Scheduler | task name `Aureka`（at-logon） |
+
+啟動的命令是 `aureka tray`——tray 自動把 daemon 拉起，所以登入後 menu bar / system tray 出現 icon、daemon 同時在背景就緒、按下熱鍵立即可用。Quit-from-menu 不會被 launchd 重新拉起；crash 才會。
 
 ---
 

@@ -332,9 +332,7 @@ _HTML = r"""<!doctype html>
   </div>
 
   <footer class="bar">
-    <span class="status" id="status"></span>
-    <button class="btn" type="button" onclick="window.pywebview.api.close()">Close</button>
-    <button class="btn primary" type="button" onclick="save()">Save</button>
+    <span class="status" id="status">Edits save automatically.</span>
   </footer>
 
 <script>
@@ -380,8 +378,17 @@ _HTML = r"""<!doctype html>
     });
     return data;
   }
-  async function save() {
+  // Auto-save: debounce per-field commits so quick edits coalesce into one
+  // POST /reload but the user gets immediate feedback in the status bar.
+  let _saveTimer = null;
+  let _initialLoadDone = false;
+  function scheduleSave() {
+    if (!_initialLoadDone) return;  // suppress saves during applyConfig()
     setStatus('Saving…');
+    if (_saveTimer) clearTimeout(_saveTimer);
+    _saveTimer = setTimeout(doSave, 350);
+  }
+  async function doSave() {
     const r = await window.pywebview.api.save_config(collect());
     if (!r || !r.ok) { setStatus('Error: ' + (r && r.error || 'unknown'), 'err'); return; }
     let msg = 'Saved';
@@ -394,6 +401,16 @@ _HTML = r"""<!doctype html>
       } else if (!rl.ok) msg += ' · reload failed: ' + (rl.error || 'unknown');
     } else { msg += ' · daemon not running'; }
     setStatus(msg, 'ok');
+  }
+  function bindAutoSave() {
+    $$('[data-k]').forEach(el => {
+      el.addEventListener('change', scheduleSave);  // SELECT: instant; INPUT: blur/Enter
+    });
+  }
+  // Helper: programmatic value set that triggers the auto-save listener.
+  function setFieldValue(el, value) {
+    el.value = value;
+    el.dispatchEvent(new Event('change', { bubbles: true }));
   }
 
   // ── LLM/VLM model dropdowns ────────────────────────────────────────────
@@ -484,8 +501,7 @@ _HTML = r"""<!doctype html>
     const cur = Number($('[data-k="daemon.port"]').value) || 7777;
     const r = await window.pywebview.api.find_free_port(cur);
     if (r && r.port) {
-      $('[data-k="daemon.port"]').value = r.port;
-      setStatus('Picked free port ' + r.port + ' (Save to apply)', 'ok');
+      setFieldValue($('[data-k="daemon.port"]'), r.port);
     } else {
       setStatus('No free port in range', 'err');
     }
@@ -500,7 +516,7 @@ _HTML = r"""<!doctype html>
     function done(text) {
       btn.textContent = 'Press…'; btn.disabled = false;
       window.removeEventListener('keydown', onKey, true);
-      if (text) input.value = text;
+      if (text) setFieldValue(input, text);
     }
     function onKey(e) {
       e.preventDefault(); e.stopPropagation();
@@ -567,9 +583,8 @@ _HTML = r"""<!doctype html>
         const k = `${r.section}.${r.key}`;
         const el = document.querySelector(`[data-k="${k}"]`);
         if (!el) return;
-        el.value = r.value;
+        setFieldValue(el, r.value);
         activateTab(r.section);
-        setStatus(`Applied ${k} = ${r.value} (Save to persist)`, 'ok');
       };
       card.appendChild(btn);
       root.appendChild(card);
@@ -580,8 +595,10 @@ _HTML = r"""<!doctype html>
   window.addEventListener('pywebviewready', async () => {
     const cfg = await window.pywebview.api.load_config();
     applyConfig(cfg);
-    setStatus('Loaded from ' + (cfg.__path__ || 'defaults'));
+    setStatus('Edits save automatically.');
     fillEndpointModels().catch(() => {});  // best-effort
+    bindAutoSave();
+    _initialLoadDone = true;
   });
 </script>
 </body>
@@ -881,12 +898,21 @@ class Api:
 
     # — Window —
     def close(self):
-        try:
-            import webview
-            for w in webview.windows:
-                w.destroy()
-        except Exception:
-            pass
+        # Destroy on a short delay so the JS bridge RPC has a chance to return
+        # before the window goes away — calling destroy() inside the bridge
+        # worker thread can hang on macOS WKWebView.
+        def _later():
+            try:
+                import webview
+                for w in list(webview.windows):
+                    try:
+                        w.destroy()
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+        threading.Timer(0.05, _later).start()
+        return {"ok": True}
 
 
 def open_settings():

@@ -15,24 +15,36 @@
 - **WHEN** Tailwind Play CDN 無法連線
 - **THEN** 視窗仍可顯示與操作，所有欄位、按鈕透過 fallback CSS 維持可點擊與可讀
 
-### Requirement: 設定讀寫與 Daemon Reload
-系統 SHALL 在 Save 時把 UI 表單寫回 `config.toml` 並保留原檔註解；存檔成功後若 daemon 在線則自動 POST `/reload`，並在狀態列顯示是「daemon 熱套用」、「需要重啟才能生效的欄位列表」、或「daemon 未運行」。
+### Requirement: 自動儲存（auto-save）與 Daemon Reload
+設定視窗 SHALL **不**提供 Save 按鈕；任何欄位 commit 事件（`<select>` 的 `change`、`<input>` 的 blur 或 Enter）後，UI MUST 在短延遲（≤500 ms debounce）內把整份表單寫回 `config.toml` 並保留原檔註解。儲存成功且 daemon 在線時系統 SHALL POST `/reload`，狀態列顯示「daemon 熱套用」、「需重啟欄位列表」或「daemon 未運行」。
 
 #### Scenario: 保留註解儲存
-- **WHEN** 使用者在 UI 編輯任意欄位並按 Save
+- **WHEN** 使用者在 UI 編輯任意欄位並 commit（離開焦點 / 按 Enter / 改變 select）
 - **THEN** 系統用 `tomlkit` parse 既有 `config.toml`，覆寫被改的 key，回寫後原註解仍存在
 
 #### Scenario: Daemon 在線且改動可熱套用
-- **WHEN** Save 後 daemon 健康，被改的欄位都屬 LLM/VLM 範圍
+- **WHEN** auto-save 完成、daemon 健康，被改的欄位都屬 LLM/VLM 範圍
 - **THEN** UI 狀態列顯示 `Saved · daemon reloaded`
 
 #### Scenario: Daemon 在線但有 restart-required 欄位
-- **WHEN** Save 後 daemon 健康，改動包含 `asr.model` / `tts.voice` / `daemon.port` 等
-- **THEN** UI 狀態列列出需要重啟的欄位名稱
+- **WHEN** auto-save 完成、daemon 健康，改動包含 `asr.model` / `tts.voice` / `daemon.port` 等
+- **THEN** UI 狀態列以警告色列出需要重啟的欄位名稱
 
 #### Scenario: Daemon 不在線
-- **WHEN** Save 後無法連到 daemon 端口
+- **WHEN** auto-save 完成、無法連到 daemon 端口
 - **THEN** UI 顯示 `Saved · daemon not running`，不視為錯誤
+
+#### Scenario: 視窗開啟初始載入不觸發儲存
+- **WHEN** 視窗第一次開啟、`Api.load_config()` 把現有值灌入欄位
+- **THEN** 系統 MUST NOT 因為這些程式化的填入觸發任何寫回 `config.toml` 的動作
+
+#### Scenario: 程式化欄位寫入也觸發 auto-save
+- **WHEN** UI 透過 port Auto 按鈕 / hotkey 捕捉 / benchmark Recommendation Apply 把值塞到欄位
+- **THEN** 系統 SHALL 觸發與使用者手動 commit 等價的 auto-save 流程
+
+#### Scenario: 沒有 in-window Save / Close 按鈕
+- **WHEN** 視窗開啟
+- **THEN** footer 區塊只有狀態文字；視窗關閉走作業系統原生視窗框（紅色關閉鈕 / X）
 
 ### Requirement: 欄位皆採選單形式（值域已知時）
 系統 SHALL 將任何已知值域的欄位以 `<select>` 或 `<input list="">+<datalist>` 呈現，避免使用者需要記憶字串或 enum：靜態 `<select>` 用於 `tts.lang_code`、`tts.device`、`hotkey.mode`、`hotkey.input_mode`、`daemon.host`；datalist 用於 `asr.model`、`tts.voice`、`hotkey.lang`，以及動態取得的 `llm.model`、`vlm.model`。

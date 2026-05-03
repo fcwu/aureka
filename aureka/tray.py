@@ -46,6 +46,13 @@ def run_tray() -> None:
             "pystray not installed. Install with: pip install 'aureka[voice]'"
         ) from e
 
+    # Auto-start the daemon when the tray launches and nothing is listening yet.
+    # This is what makes `aureka autostart install` (which spawns `aureka tray`
+    # at login) result in a working setup without requiring the user to also
+    # click "Start daemon" from the menu.
+    if not _daemon_running():
+        _spawn("daemon", "start")
+
     def _noop(icon, item):
         pass
 

@@ -27,3 +27,18 @@
 #### Scenario: Glyph 為「A + sparkles」
 - **WHEN** 任何平台呼叫 `make_tray_icon()`
 - **THEN** 回傳影像的主體為線條風格的字母「A」，並在右側帶有 2–3 顆 4 角星 sparkle 裝飾，視覺主體與參考設計一致
+
+### Requirement: Tray 啟動時自動拉起 daemon
+任一 tray 入口（`aureka tray` / `aureka.client.start_tray`）啟動時 MUST 檢查 daemon 是否在 `(cfg.daemon.host, cfg.daemon.port)` 上監聽；若否，系統 SHALL 自動 spawn `aureka daemon start` 作為背景子行程並使用 `start_new_session=True` 讓 daemon 獨立於 tray 生命週期。Tray 退出（Quit）SHALL NOT 連帶停止 daemon。
+
+#### Scenario: Daemon 已運行
+- **WHEN** 使用者執行 `aureka tray` 且 daemon 已在預設 port 監聽
+- **THEN** Tray 不重新拉 daemon，icon 直接出現
+
+#### Scenario: Daemon 未運行
+- **WHEN** 使用者執行 `aureka tray` 但 daemon 未啟動
+- **THEN** Tray 自動 spawn `aureka daemon start` 後正常啟動 icon；daemon 在背景完成 ASR/TTS 載入
+
+#### Scenario: Tray Quit 不影響 daemon
+- **WHEN** 使用者從 tray 選單按下 Quit
+- **THEN** Tray 處理程序結束、icon 消失；daemon 繼續運行，後續 `aureka type` / `aureka speak` 仍走 daemon 加速路徑

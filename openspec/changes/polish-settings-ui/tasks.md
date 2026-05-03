@@ -51,6 +51,26 @@
 - [x] 7.3 Recommendation cards rendered from structured result; each card has source numbers + Apply button
 - [x] 7.4 Apply switches sidebar to relevant section, fills the field, leaves Save to the user
 
+## 7b. Auto-save (replaces Save button)
+
+- [x] 7b.1 Remove Save and Close buttons from footer; status bar only
+- [x] 7b.2 Bind `change` listeners on every `[data-k]` field; `_initialLoadDone` flag suppresses saves during the initial `applyConfig`
+- [x] 7b.3 Debounce saves (~350 ms) so rapid edits coalesce into one POST `/reload`
+- [x] 7b.4 Programmatic value sets (port Auto, hotkey capture, recommendation Apply) go through `setFieldValue(el, v)` that dispatches a synthetic `change` event
+
+## 7c. Tray as autostart entry point
+
+- [x] 7c.1 `aureka/tray.py:run_tray` checks daemon health on launch and spawns `aureka daemon start` (with `start_new_session=True`) if missing
+- [x] 7c.2 `aureka/autostart.py` `_serve_args` and `_win_command` switch from `_daemon_serve` to `tray`
+- [x] 7c.3 macOS plist: `ProcessType` flips Background → Adaptive; log path renamed to `tray.{out,err}.log`
+- [x] 7c.4 Validate plist round-trip + `plutil -lint` after change
+
+## 7d. README documentation
+
+- [x] 7d.1 Add a section covering `aureka ui`, `aureka tray`, `aureka autostart {install,uninstall,status}` in README.md, ordered after the existing daemon section
+- [x] 7d.2 Mention auto-save semantics in the UI section so users don't look for a Save button
+- [x] 7d.3 Note that `autostart install` launches `aureka tray`, which auto-starts the daemon
+
 ## 8. Tray icon refresh
 
 - [x] 8.1 Create `aureka/_icon.py` with `make_tray_icon() -> PIL.Image.Image`; render "A + sparkles" via ImageDraw at 4× then downsample with LANCZOS

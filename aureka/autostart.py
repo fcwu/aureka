@@ -31,7 +31,10 @@ def _config_path() -> str | None:
 
 
 def _serve_args(host: str, port: int) -> list[str]:
-    return [_python(), "-m", "aureka", "_daemon_serve", "--host", host, "--port", str(port)]
+    """Login command. Launches `aureka tray`, which auto-starts the daemon
+    on first run if it is not already listening (see `aureka.tray.run_tray`).
+    Host / port arrive via `config.toml`, so we don't pin them in the plist."""
+    return [_python(), "-m", "aureka", "tray"]
 
 
 # ── macOS ────────────────────────────────────────────────────────────────────
@@ -60,12 +63,15 @@ def _mac_install(host: str, port: int) -> None:
         "Label": LABEL,
         "ProgramArguments": _serve_args(host, port),
         "RunAtLoad": True,
+        # Restart on crash; do NOT respawn after Quit-from-menu (clean exit).
         "KeepAlive": {"SuccessfulExit": False, "Crashed": True},
-        "StandardOutPath": str(log_dir / "daemon.out.log"),
-        "StandardErrorPath": str(log_dir / "daemon.err.log"),
+        "StandardOutPath": str(log_dir / "tray.out.log"),
+        "StandardErrorPath": str(log_dir / "tray.err.log"),
         "EnvironmentVariables": env,
         "WorkingDirectory": str(Path.home()),
-        "ProcessType": "Background",
+        # Tray needs UI access to draw NSStatusItem; "Adaptive" lets launchd
+        # treat it as interactive when needed (vs "Background" which suppresses UI).
+        "ProcessType": "Adaptive",
     }
     with open(plist_path, "wb") as f:
         plistlib.dump(plist, f)
@@ -138,8 +144,8 @@ def _win_command(host: str, port: int) -> str:
         # `cmd /c "set X=Y && python ..."` to inject the env var
         parts.append(f'set "AUREKA_CONFIG={cfg_path}" && ')
     parts.append('"' + _python() + '"')
-    parts.append(' -m aureka _daemon_serve')
-    parts.append(f' --host {host} --port {port}')
+    # Launch tray; tray auto-starts the daemon on first run.
+    parts.append(' -m aureka tray')
     inner = "".join(parts)
     return f'cmd /c "{inner}"'
 

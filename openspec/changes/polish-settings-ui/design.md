@@ -107,6 +107,32 @@ Both `aureka/tray.py` (daemon-control tray) and `aureka/client.py:start_tray` (v
 
 Strokes target ~12% of canvas width to stay legible at 22pt menu bar size.
 
+### 10. Auto-save: drop the Save button entirely
+
+Field commits trigger save automatically. Implementation:
+- For every `[data-k]` input/select, register a JS `change` listener; selects fire instantly, inputs fire on blur or Enter (the standard "commit" semantics).
+- Listener calls a debounced `scheduleSave()` (350 ms) → POST through the same `Api.save_config(payload)` path that the Save button previously used.
+- A short `_initialLoadDone` guard suppresses saves during the initial `applyConfig()` pass on window open.
+- Programmatic value sets (port Auto button, hotkey capture, recommendation Apply) go through `setFieldValue(el, v)` which dispatches a synthetic `change` event so the same auto-save listener fires.
+
+**Why drop Save:** the manual Save button created an extra step and an inconsistency window between "edited" and "applied". For a small settings dialog where every field maps 1:1 to a config key, autosave is the macOS / iOS preferences norm.
+
+**Why no in-window Close button:** removing Save means the only remaining footer button was Close, which duplicated the OS window frame. We keep the footer (status text only) and let users close via the native chrome (red traffic light on macOS, X on Windows). This also dodges the worker-thread `Window.destroy()` quirk that made the previous Close button unreliable on macOS.
+
+**Trade-off:** typos persist immediately. Mitigation: every save also POSTs `/reload` to the daemon, and the status bar surfaces "needs restart" warnings in the same place. The user can always undo by editing again.
+
+### 11. Tray as the autostart entry point
+
+The previous round's `aureka autostart install` wired `aureka _daemon_serve` directly. That gave a working daemon at login but no UI to control it. Switch the login command to `aureka tray`:
+
+- `aureka tray` (`aureka/tray.py:run_tray`) on launch checks whether the daemon is reachable on `(cfg.daemon.host, cfg.daemon.port)` and, if not, calls `_spawn("daemon", "start")`. Spawn uses `start_new_session=True` so the daemon survives the tray's lifetime.
+- macOS plist: `ProcessType` flips from `Background` (correct for a headless service) to `Adaptive` (correct for a menu-bar GUI). `KeepAlive: {SuccessfulExit: False, Crashed: True}` already does the right thing — Quit-from-menu exits cleanly and is not respawned; an actual crash gets restarted.
+- Windows: schtasks command becomes `cmd /c "set AUREKA_CONFIG=… && python -m aureka tray"`. Same `/sc onlogon` schedule as before.
+
+**Why tray-as-entry instead of two separate launch agents:** one entry point keeps the user mental model simple ("Aureka starts at login = tray icon + working hotkey"). Two LaunchAgents (one per process) doubles the install / uninstall surface and creates a state machine where the daemon could be running without the tray.
+
+**Why tray spawns daemon (not the reverse):** the daemon is a long-lived service; the tray is the user-facing client. The dependency direction matches: client launches and verifies its server. If the user later runs `aureka daemon stop` from the tray, the tray stays alive and shows "Daemon: stopped" — a clear state signal.
+
 ## Risks / Trade-offs
 
 - **Tailwind CDN unreachable** → Form still functions via inline fallback CSS but looks utilitarian. Acceptable; Settings is rarely a first-impression surface.
