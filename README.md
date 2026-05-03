@@ -11,7 +11,7 @@
 | `aureka type` | 講話 → 直接打到任何 app 游標 | Streaming 邊講邊出字；LLM 修標點 / 刪贅字 / 翻譯 |
 | `aureka listen` | 即時轉錄系統音訊（會議、影片、Podcast） | 跨平台 loopback；輸出檔 / 即時視窗 / mic + system 雙軌 |
 | `aureka speak` | TTS 朗讀文字或 Markdown 檔 | Kokoro 中英雙語；daemon 共用 pipeline 低延遲 |
-| `aureka process` | 影片／音訊批次 → 結構化 Markdown | ASR + VLM 截圖描述 + LLM 摘要，可丟入知識庫 |
+| `aureka process` | 影片／音訊批次 → 結構化 Markdown / SRT / VTT / 互動式 HTML | ASR + VLM 截圖描述 + LLM 摘要；`--diarize` 標記說話人；HTML 內建波形 + 點擊跳段 |
 
 附帶：`aureka ui` 設定視窗 · `aureka tray` 系統托盤 · `aureka autostart` 登入自啟 · `aureka benchmark` 速度評測 · `aureka download` 一次抓所有模型。
 
@@ -220,11 +220,30 @@ aureka process podcast.mp3
 
 # 自訂參數
 aureka process video.mp4 --frame-interval 60 --device cuda --output-dir ~/notes/inbox
+
+# 多種輸出格式：md（預設）/ srt / vtt / html / all / 逗號清單
+aureka process lecture.mp4 --format html
+aureka process lecture.mp4 --format md,srt,html
+
+# 多人錄音：標記說話人（需 pip install "aureka[diarize]"）
+aureka process interview.mp4 --diarize
+aureka process panel.wav --diarize --num-speakers 3   # 已知 N 人時固定下來
+aureka process podcast.mp3 --diarize --no-speaker-labels  # md/srt/vtt 不加 [S1] 前綴；html 仍上色
 ```
 
-### 輸出
+### 輸出格式
 
-結果寫入 `output/YYYYMMDD-<slug>.md`，格式如下：
+| 格式 | 用途 |
+|------|------|
+| `md` | 結構化 Markdown（含摘要、重點、逐段紀錄、視覺、原始轉錄）— 丟知識庫用 |
+| `srt` / `vtt` | 標準字幕格式，可丟給影片播放器 |
+| `html` | **互動式 transcript player**：自包含單檔，內嵌音訊 + canvas 波形；點任意段或波形位置跳到對應時間，scroll 到該段並 highlight；diarize 時各說話人不同色，波形上對應區段也標色 |
+
+`--diarize` 用 resemblyzer + spectralcluster 做完全離線 voice clustering（不必 HuggingFace token、不像 pyannote 要授權）。第一次跑時自動抓 ~17MB 的 voice encoder weight。
+
+### Markdown 輸出範例
+
+`md` 格式寫入 `output/YYYYMMDD-<slug>.md`，內容結構：
 
 ```markdown
 ---
