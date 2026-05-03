@@ -92,3 +92,99 @@ def test_download_all_gated_repo_hints_login():
     with patch("huggingface_hub.snapshot_download", side_effect=fake_snapshot_download):
         with pytest.raises(RuntimeError, match="huggingface-cli login"):
             models.download_all("cpu")
+
+
+# ── progress callback ────────────────────────────────────────────────────────
+
+def test_download_all_progress_callback_emits_start_done():
+    from aureka import models
+
+    events = []
+    with patch("huggingface_hub.snapshot_download", return_value="/tmp/fake-snap"):
+        models.download_all(progress=lambda e: events.append(dict(e)))
+
+    phases = [(e["phase"], e["repo_key"]) for e in events]
+    assert ("start", "kokoro") in phases
+    assert ("done", "kokoro") in phases
+    assert ("start", "faster-whisper") in phases
+    assert ("done", "faster-whisper") in phases
+
+
+def test_download_all_progress_emits_error_on_failure():
+    from aureka import models
+
+    events = []
+    with patch("huggingface_hub.snapshot_download", side_effect=OSError("boom")):
+        with pytest.raises(OSError):
+            models.download_all(progress=lambda e: events.append(dict(e)))
+
+    error_events = [e for e in events if e["phase"] == "error"]
+    assert len(error_events) == 1
+    assert error_events[0]["repo_key"] == "kokoro"
+
+
+def test_download_all_keys_filter_narrows_selection():
+    from aureka import models
+
+    visited = []
+    with patch("huggingface_hub.snapshot_download",
+               side_effect=lambda repo_id, **kw: (visited.append(repo_id), "/tmp/x")[1]):
+        models.download_all(keys=["kokoro"])
+
+    assert visited == ["hexgrad/Kokoro-82M"]
+
+
+# ── model_status ─────────────────────────────────────────────────────────────
+
+def test_model_status_no_cache_returns_zero_state():
+    from aureka import models
+
+    fake = MagicMock()
+    fake.repos = []
+    with patch("huggingface_hub.scan_cache_dir", return_value=fake):
+        status = models.model_status()
+
+    assert set(status.keys()) == {"kokoro", "faster-whisper"}
+    for v in status.values():
+        assert v["downloaded"] is False
+        assert v["size_bytes"] == 0
+        assert v["snapshot_path"] is None
+
+
+def test_model_status_reports_downloaded_repo():
+    from aureka import models
+    from datetime import datetime
+
+    rev = MagicMock()
+    rev.snapshot_path = "/cache/snap/abc"
+    rev.last_modified = datetime(2025, 1, 1)
+
+    repo = MagicMock()
+    repo.repo_id = "hexgrad/Kokoro-82M"
+    repo.size_on_disk = 350_000_000
+    repo.revisions = [rev]
+
+    cache = MagicMock()
+    cache.repos = [repo]
+
+    with patch("huggingface_hub.scan_cache_dir", return_value=cache):
+        status = models.model_status()
+
+    assert status["kokoro"]["downloaded"] is True
+    assert status["kokoro"]["size_bytes"] == 350_000_000
+    assert status["kokoro"]["snapshot_path"] == "/cache/snap/abc"
+    assert status["faster-whisper"]["downloaded"] is False
+
+
+def test_model_status_does_not_call_snapshot_download():
+    """The whole point of `model_status` is to not trigger any download."""
+    from aureka import models
+
+    fake = MagicMock()
+    fake.repos = []
+
+    with patch("huggingface_hub.snapshot_download") as dl, \
+         patch("huggingface_hub.scan_cache_dir", return_value=fake):
+        models.model_status()
+
+    dl.assert_not_called()

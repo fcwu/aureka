@@ -184,3 +184,72 @@ def test_run_benchmark_writes_default_output_path(tmp_path, monkeypatch):
     assert out_path.parent == tmp_path
     assert out_path.name.startswith("benchmark-")
     assert out_path.name.endswith(".md")
+
+
+# ── structured result + progress callback ────────────────────────────────────
+
+def _stub_run_benchmark_inputs(b, monkeypatch):
+    """Stub out the heavy IO so the test runs in milliseconds and is hermetic."""
+    monkeypatch.setattr(b, "_collect_aureka_env",
+                        lambda d: {"hostname": "h", "device_resolved": "cpu"})
+    monkeypatch.setattr(b, "_bench_cold_start", lambda d: [])
+    monkeypatch.setattr(b, "_bench_asr",
+                        lambda d, r: [b.BenchmarkResult("ASR", "RTF", 0.6, 0.5, 0.7, "")])
+    monkeypatch.setattr(b, "_bench_tts",
+                        lambda d, r: [b.BenchmarkResult("TTS", "RTF", 0.3, 0.25, 0.4, "")])
+    monkeypatch.setattr(b, "_bench_llm",
+                        lambda r: [b.BenchmarkResult("LLM", "TTFT", 4500.0, 4000.0, 5000.0, "ms")])
+    monkeypatch.setattr(b, "_collect_llm_env", lambda: {"base_url": "x"})
+
+
+def test_run_benchmark_returns_structured_dict(tmp_path, monkeypatch):
+    from aureka import benchmark as b
+    _stub_run_benchmark_inputs(b, monkeypatch)
+    monkeypatch.chdir(tmp_path)
+
+    result = b.run_benchmark(device="cpu", quick=True, skip_llm=False)
+    assert "report_path" in result and result["report_path"].exists()
+    tasks = result["tasks"]
+    assert tasks["asr"]["status"] == "ok"
+    assert tasks["asr"]["median"] == 0.6
+    assert tasks["tts"]["median"] == 0.3
+    assert tasks["llm"]["median"] == 4500.0
+    assert tasks["llm"]["metric"] == "TTFT"
+
+
+def test_run_benchmark_skip_llm_marks_status_skipped(tmp_path, monkeypatch):
+    from aureka import benchmark as b
+    _stub_run_benchmark_inputs(b, monkeypatch)
+    monkeypatch.chdir(tmp_path)
+
+    with patch("openai.OpenAI") as openai_ctor:
+        result = b.run_benchmark(device="cpu", quick=True, skip_llm=True)
+
+    openai_ctor.assert_not_called()
+    assert result["tasks"]["llm"]["status"] == "skipped"
+    assert result["tasks"]["asr"]["status"] == "ok"
+
+
+def test_run_benchmark_progress_callback_receives_lines(tmp_path, monkeypatch):
+    from aureka import benchmark as b
+    _stub_run_benchmark_inputs(b, monkeypatch)
+    monkeypatch.chdir(tmp_path)
+
+    captured = []
+    b.run_benchmark(device="cpu", quick=True, skip_llm=True, progress=captured.append)
+
+    assert captured, "callback should receive at least one line"
+    joined = "\n".join(captured)
+    assert "Benchmark starting" in joined
+    assert "Report saved" in joined
+
+
+def test_run_benchmark_progress_callback_clears_after_run(tmp_path, monkeypatch):
+    """The module-level _progress_cb must be reset after the call so a later
+    direct print() doesn't leak into a stale subscriber."""
+    from aureka import benchmark as b
+    _stub_run_benchmark_inputs(b, monkeypatch)
+    monkeypatch.chdir(tmp_path)
+
+    b.run_benchmark(device="cpu", quick=True, skip_llm=True, progress=lambda _: None)
+    assert b._progress_cb is None
