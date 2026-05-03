@@ -312,6 +312,67 @@ def test_api_benchmark_streams_lines_then_finishes(monkeypatch, tmp_path):
     assert "recommendations" in s["result"]
 
 
+# ── Api.list_loopback_devices / test_loopback_capture ─────────────────────
+
+def test_api_list_loopback_devices_empty_returns_install_hint(monkeypatch):
+    """Empty candidate list surfaces install hint for the user."""
+    from aureka import audio_loopback as al
+    monkeypatch.setattr(al, "list_candidates", lambda: [])
+    monkeypatch.setattr(al, "install_hint", lambda: "install BlackHole")
+    from aureka.ui import Api
+    r = Api().list_loopback_devices()
+    assert r["devices"] == []
+    assert "BlackHole" in r["install_hint"]
+
+
+def test_api_list_loopback_devices_with_candidates(monkeypatch):
+    from aureka import audio_loopback as al
+    monkeypatch.setattr(al, "list_candidates", lambda: [
+        al.LoopbackDevice(name="BlackHole 2ch", backend="blackhole"),
+    ])
+    from aureka.ui import Api
+    r = Api().list_loopback_devices()
+    assert len(r["devices"]) == 1
+    assert r["devices"][0]["backend"] == "blackhole"
+    assert r["install_hint"] == ""  # devices present → no hint shown
+
+
+def test_api_test_loopback_capture_no_device(monkeypatch):
+    from aureka import audio_loopback as al
+    monkeypatch.setattr(al, "list_candidates", lambda: [])
+    from aureka.ui import Api
+    r = Api().test_loopback_capture("")
+    assert r["ok"] is False
+    assert "no loopback device" in r["error"]
+
+
+# ── Listen section roundtrips through save_config ──────────────────────────
+
+def test_listen_section_round_trips(tmp_path, monkeypatch):
+    cfg = tmp_path / "config.toml"
+    cfg.write_text("[listen]\ndevice = \"\"\n")
+    monkeypatch.setenv("AUREKA_CONFIG", str(cfg))
+    from aureka.ui import Api
+    api = Api()
+    payload = {"listen": {
+        "device": "BlackHole 2ch",
+        "input_mode": "refine",
+        "target_lang": "en",
+        "out_path": "/tmp/m.txt",
+        "window": True,
+        "idle_timeout_seconds": 600,
+    }}
+    with patch("aureka.ui._try_reload_daemon", return_value={"reached": False}):
+        r = api.save_config(payload)
+    assert r["ok"] is True
+    text = cfg.read_text()
+    assert 'device = "BlackHole 2ch"' in text
+    assert 'input_mode = "refine"' in text
+    assert 'window = true' in text
+    assert 'idle_timeout_seconds = 600' in text
+
+
+
 def test_api_benchmark_progress_consumes_lines_incrementally(monkeypatch):
     """Repeated calls to benchmark_progress shouldn't re-yield the same lines."""
     from aureka import ui

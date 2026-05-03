@@ -166,6 +166,7 @@ _HTML = r"""<!doctype html>
       <button data-tab="tts">TTS</button>
       <button data-tab="hotkey">Hotkey</button>
       <button data-tab="daemon">Daemon</button>
+      <button data-tab="listen">Listen</button>
       <button data-tab="models">Models</button>
       <button data-tab="tools">Tools</button>
     </aside>
@@ -315,6 +316,47 @@ _HTML = r"""<!doctype html>
         <div class="field"><div><div class="label">Log file</div><div class="help"></div></div><input data-k="daemon.log_file"></div>
       </section>
 
+      <!-- Listen -->
+      <section class="panel" id="listen">
+        <h2 class="section-title">System audio (loopback)</h2>
+        <p class="section-desc">Settings for <code>aureka listen</code> — transcribe what your system is playing (Zoom, YouTube, podcasts).</p>
+        <div id="listen-no-device" style="display:none; padding:12px; border:1px solid #d97706; background:#fef3c7; color:#92400e; border-radius:8px; margin-bottom:12px;">
+          <strong>No loopback device detected.</strong>
+          <div id="listen-install-hint" style="margin-top:6px; font-size:12px; white-space:pre-wrap;"></div>
+        </div>
+        <div class="field">
+          <div><div class="label">Device</div><div class="help">Loopback device name. Empty = auto-detect first candidate.</div></div>
+          <input data-k="listen.device" list="listen-devices" placeholder="auto-detect">
+        </div>
+        <datalist id="listen-devices"></datalist>
+        <div class="field">
+          <div><div class="label">Input mode</div><div class="help">Default mode for <code>aureka listen</code>.</div></div>
+          <select data-k="listen.input_mode">
+            <option>transcribe</option><option>refine</option><option>translate</option>
+          </select>
+        </div>
+        <div class="field">
+          <div><div class="label">Target language</div><div class="help">For translate mode.</div></div>
+          <input data-k="listen.target_lang" list="hotkey-langs">
+        </div>
+        <div class="field">
+          <div><div class="label">Output file</div><div class="help">Append per-segment transcript to this path. Empty = stdout only.</div></div>
+          <input data-k="listen.out_path" placeholder="e.g. ~/Documents/meeting.txt">
+        </div>
+        <div class="field">
+          <div><div class="label">Open window</div><div class="help">Show tail-style transcript window when <code>aureka listen</code> runs without explicit flags.</div></div>
+          <input type="checkbox" data-k="listen.window">
+        </div>
+        <div class="field">
+          <div><div class="label">Idle timeout (s)</div><div class="help">Daemon-side: close <code>/listen</code> session after this many seconds of silence. 1800 = 30 min.</div></div>
+          <input type="number" data-k="listen.idle_timeout_seconds" min="60" max="86400">
+        </div>
+        <div class="row" style="margin-top:12px;">
+          <button class="btn" type="button" id="listen-test">Test capture (5 s)</button>
+          <span id="listen-test-result" style="font-size:12px; color:var(--muted, #888); align-self:center; flex:1;"></span>
+        </div>
+      </section>
+
       <!-- Models -->
       <section class="panel" id="models">
         <h2 class="section-title">Model downloads</h2>
@@ -360,7 +402,43 @@ _HTML = r"""<!doctype html>
     $(`aside.nav button[data-tab="${name}"]`).classList.add('active');
     $(`section.panel#${name}`).classList.add('active');
     if (name === 'models') refreshModels();
+    if (name === 'listen') refreshLoopbackDevices();
   }
+
+  // ── Listen tab: device discovery & test capture ────────────────────────
+  async function refreshLoopbackDevices() {
+    const r = await window.pywebview.api.list_loopback_devices();
+    const dl = document.getElementById('listen-devices');
+    const warning = document.getElementById('listen-no-device');
+    const hint = document.getElementById('listen-install-hint');
+    if (!dl) return;
+    dl.innerHTML = '';
+    (r.devices || []).forEach(d => {
+      const o = document.createElement('option'); o.value = d.name; dl.appendChild(o);
+    });
+    if (!r.devices || r.devices.length === 0) {
+      warning.style.display = 'block';
+      hint.textContent = r.install_hint || '';
+    } else {
+      warning.style.display = 'none';
+    }
+  }
+  document.getElementById('listen-test').onclick = async function() {
+    const btn = this;
+    const out = document.getElementById('listen-test-result');
+    btn.disabled = true; btn.textContent = 'Capturing 5 s…'; out.textContent = '';
+    const device = document.querySelector('[data-k="listen.device"]').value || '';
+    const r = await window.pywebview.api.test_loopback_capture(device, 5);
+    btn.disabled = false; btn.textContent = 'Test capture (5 s)';
+    if (!r || !r.ok) {
+      out.textContent = 'Failed: ' + (r && r.error || 'unknown');
+      out.style.color = '#dc2626';
+      return;
+    }
+    const rmsDb = r.rms > 0 ? (20 * Math.log10(r.rms)).toFixed(1) : '-inf';
+    out.textContent = `${r.device} · RMS ${r.rms.toFixed(4)} (${rmsDb} dB) · peak ${r.peak.toFixed(3)}`;
+    out.style.color = r.rms > 0.001 ? '#16a34a' : '#d97706';
+  };
 
   // ── Status helper ──────────────────────────────────────────────────────
   function setStatus(msg, kind) {
@@ -374,7 +452,11 @@ _HTML = r"""<!doctype html>
     $$('[data-k]').forEach(el => {
       const [section, key] = el.dataset.k.split('.');
       const v = cfg?.[section]?.[key];
-      el.value = (v === undefined || v === null) ? '' : String(v);
+      if (el.type === 'checkbox') {
+        el.checked = !!v;
+      } else {
+        el.value = (v === undefined || v === null) ? '' : String(v);
+      }
     });
     $('#config-path').textContent = cfg.__path__ || '';
   }
@@ -383,8 +465,10 @@ _HTML = r"""<!doctype html>
     $$('[data-k]').forEach(el => {
       const [section, key] = el.dataset.k.split('.');
       data[section] = data[section] || {};
-      let v = el.value;
-      if (el.type === 'number') v = (v === '' ? null : Number(v));
+      let v;
+      if (el.type === 'checkbox') v = el.checked;
+      else if (el.type === 'number') v = (el.value === '' ? null : Number(el.value));
+      else v = el.value;
       data[section][key] = v;
     });
     return data;
@@ -809,7 +893,7 @@ class Api:
             current = load_config(path)
             doc = tomlkit.parse(path.read_text(encoding="utf-8")) if path.exists() else tomlkit.document()
 
-            for section_name in ("llm", "vlm", "asr", "tts", "daemon", "hotkey"):
+            for section_name in ("llm", "vlm", "asr", "tts", "daemon", "hotkey", "listen"):
                 section = payload.get(section_name) or {}
                 if not section:
                     continue
@@ -878,6 +962,47 @@ class Api:
     def download_progress(self):
         with _dl_lock:
             return json.loads(json.dumps(_dl_state))  # cheap deep copy via JSON
+
+    # — Loopback discovery & test —
+    def list_loopback_devices(self):
+        try:
+            from aureka import audio_loopback as al
+            cands = al.list_candidates()
+            return {
+                "devices": [{"name": c.name, "backend": c.backend} for c in cands],
+                "install_hint": al.install_hint() if not cands else "",
+            }
+        except Exception as e:
+            return {"devices": [], "install_hint": f"{type(e).__name__}: {e}"}
+
+    def test_loopback_capture(self, device_name: str = "", duration_seconds: float = 5.0):
+        """Read up to `duration_seconds` from the chosen loopback device and
+        return RMS / peak amplitude so the user can verify routing works."""
+        try:
+            from aureka import audio_loopback as al
+            import numpy as np
+            cands = al.list_candidates()
+            if device_name:
+                device = next((c for c in cands if c.name == device_name or device_name in c.name), None)
+            else:
+                device = cands[0] if cands else None
+            if device is None:
+                return {"ok": False, "error": "no loopback device available"}
+            samples = []
+            target_bytes = int(16000 * 2 * float(duration_seconds))
+            with al.LoopbackStream(device) as stream:
+                for chunk in stream:
+                    samples.append(chunk)
+                    if sum(len(c) for c in samples) >= target_bytes:
+                        break
+            buf = b"".join(samples)
+            arr = np.frombuffer(buf, dtype=np.int16).astype("float32") / 32768.0
+            rms = float((arr ** 2).mean() ** 0.5) if len(arr) else 0.0
+            peak = float(abs(arr).max()) if len(arr) else 0.0
+            return {"ok": True, "rms": rms, "peak": peak,
+                    "samples": len(arr), "device": device.name}
+        except Exception as e:
+            return {"ok": False, "error": f"{type(e).__name__}: {e}"}
 
     # — Port helper —
     def find_free_port(self, start):
