@@ -63,9 +63,28 @@ class BenchmarkReport:
 
 # ── Timing harness ────────────────────────────────────────────────────────────
 
+_progress_cb: Callable[[str], None] | None = None
+
+
 def _print_progress(task: str, label: str, secs: float | None = None) -> None:
     suffix = f" → {secs:.2f}s" if secs is not None else ""
-    print(f"[{task}] {label}{suffix}", flush=True)
+    line = f"[{task}] {label}{suffix}"
+    print(line, flush=True)
+    if _progress_cb is not None:
+        try:
+            _progress_cb(line)
+        except Exception:
+            pass
+
+
+def _emit(line: str) -> None:
+    """Print + forward to progress callback (for non-task lines like banners)."""
+    print(line, flush=True)
+    if _progress_cb is not None:
+        try:
+            _progress_cb(line)
+        except Exception:
+            pass
 
 
 def _time_runs(
@@ -440,39 +459,98 @@ def _default_output_path() -> Path:
     return Path.cwd() / f"benchmark-{socket.gethostname()}-{date.today().isoformat()}.md"
 
 
+def _structured_result(report: BenchmarkReport, report_path: Path) -> dict:
+    """Project the BenchmarkReport into a UI-friendly dict.
+
+    Tasks are keyed by lowercase name (`asr`, `tts`, `llm`); each value is
+    `{median, min, max, unit, device, status, metric}`. Per-task entries with
+    multiple metrics (e.g. ASR: RTF + chars/s) keep the primary metric (RTF
+    for ASR/TTS, TTFT for LLM) and tuck secondary metrics under `extra`.
+    """
+    primary_metric = {"ASR": "RTF", "TTS": "RTF", "LLM": "TTFT"}
+    by_task: dict[str, dict] = {}
+
+    for r in report.results:
+        if r.task not in primary_metric:
+            continue
+        key = r.task.lower()
+        slot = by_task.setdefault(key, {
+            "device": report.aureka_env.get("device_resolved", "?"),
+            "status": "ok",
+            "extra": {},
+        })
+        is_primary = r.metric == primary_metric[r.task]
+        target = slot if is_primary else slot["extra"].setdefault(r.metric, {})
+        target["median"] = r.median
+        target["min"] = r.min_v
+        target["max"] = r.max_v
+        target["unit"] = r.unit
+        if is_primary:
+            target["metric"] = r.metric
+            if r.status.startswith("failed"):
+                target["status"] = "failed"
+                target["error"] = r.status.split("failed:", 1)[-1].strip()
+            elif r.status.startswith("skipped"):
+                target["status"] = "skipped"
+            # "ok" stays as default
+
+    return {
+        "report_path": report_path,
+        "tasks": by_task,
+        "aureka_env": report.aureka_env,
+        "llm_env": report.llm_env,
+    }
+
+
 def run_benchmark(
     device: str = "auto",
     quick: bool = False,
     output_path: str | None = None,
     skip_llm: bool = False,
-) -> Path:
-    runs = QUICK_RUNS if quick else DEFAULT_RUNS
-    notes = []
-    notes.append(f"runs per task: {runs} (warm-up: {WARMUP_RUNS}); mode: {'quick' if quick else 'default'}")
-    if skip_llm:
-        notes.append("LLM tasks skipped via --skip-llm")
+    progress: Callable[[str], None] | None = None,
+) -> dict:
+    """Run the benchmark suite. Returns a structured dict (also writes Markdown).
 
-    report = BenchmarkReport(notes=notes)
-    report.aureka_env = _collect_aureka_env(device)
+    The dict includes `report_path: Path` so callers that previously used the
+    return value as a path can transition with `result["report_path"]`.
 
-    print(f"[aureka] Benchmark starting (runs={runs}, device={device})", flush=True)
-    report.results.extend(_bench_cold_start(device))
-    report.results.extend(_bench_asr(device, runs))
-    report.results.extend(_bench_tts(device, runs))
+    `progress`, when supplied, receives every progress line that goes to stdout.
+    """
+    global _progress_cb
+    _progress_cb = progress
+    try:
+        runs = QUICK_RUNS if quick else DEFAULT_RUNS
+        notes = []
+        notes.append(f"runs per task: {runs} (warm-up: {WARMUP_RUNS}); mode: {'quick' if quick else 'default'}")
+        if skip_llm:
+            notes.append("LLM tasks skipped via --skip-llm")
 
-    if skip_llm:
-        report.results.append(
-            BenchmarkResult("LLM", "tokens/s", None, None, None, "", status="skipped: --skip-llm")
-        )
-        report.llm_env = {"base_url": "(skipped)", "configured_model": "(skipped)"}
-    else:
-        report.llm_env = _collect_llm_env()
-        report.results.extend(_bench_llm(runs))
+        report = BenchmarkReport(notes=notes)
+        report.aureka_env = _collect_aureka_env(device)
 
-    print()
-    print(_render_table(report))
+        _emit(f"[aureka] Benchmark starting (runs={runs}, device={device})")
+        report.results.extend(_bench_cold_start(device))
+        report.results.extend(_bench_asr(device, runs))
+        report.results.extend(_bench_tts(device, runs))
 
-    out = Path(output_path) if output_path else _default_output_path()
-    out.write_text(_render_markdown(report), encoding="utf-8")
-    print(f"\nReport saved: {out}")
-    return out
+        if skip_llm:
+            report.results.append(
+                BenchmarkResult("LLM", "tokens/s", None, None, None, "", status="skipped: --skip-llm")
+            )
+            report.results.append(
+                BenchmarkResult("LLM", "TTFT", None, None, None, "ms", status="skipped: --skip-llm")
+            )
+            report.llm_env = {"base_url": "(skipped)", "configured_model": "(skipped)"}
+        else:
+            report.llm_env = _collect_llm_env()
+            report.results.extend(_bench_llm(runs))
+
+        _emit("")
+        _emit(_render_table(report))
+
+        out = Path(output_path) if output_path else _default_output_path()
+        out.write_text(_render_markdown(report), encoding="utf-8")
+        _emit(f"\nReport saved: {out}")
+        return _structured_result(report, out)
+    finally:
+        _progress_cb = None

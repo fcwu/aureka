@@ -13,12 +13,8 @@ import sys
 
 
 def _make_icon():
-    from PIL import Image, ImageDraw
-    img = Image.new("RGBA", (64, 64), (0, 0, 0, 0))
-    d = ImageDraw.Draw(img)
-    d.ellipse((4, 4, 60, 60), fill=(45, 127, 249, 255))
-    d.text((22, 18), "A", fill="white")
-    return img
+    from aureka._icon import make_tray_icon
+    return make_tray_icon()
 
 
 def _daemon_running() -> bool:
@@ -80,7 +76,16 @@ def run_tray() -> None:
     )
 
     icon = pystray.Icon("aureka", _make_icon(), "Aureka", menu)
-    icon.run()
+
+    # macOS: flip NSImage isTemplate after pystray binds the status item so the
+    # menu bar auto-tints in light/dark mode. Schedule the shim on a short timer
+    # because pystray needs the run loop spinning before _status_item exists.
+    def _on_setup(icon):
+        from aureka._icon import apply_macos_template
+        icon.visible = True
+        apply_macos_template(icon)
+
+    icon.run(setup=_on_setup)
 
 
 if __name__ == "__main__":

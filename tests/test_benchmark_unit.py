@@ -154,16 +154,18 @@ def test_run_benchmark_skip_llm_does_not_call_openai(tmp_path, monkeypatch):
     with patch("openai.OpenAI") as openai_ctor, \
          patch.object(b, "_collect_llm_env") as llm_env_fn, \
          patch.object(b, "_bench_llm") as bench_llm_fn:
-        out_path = b.run_benchmark(
+        result = b.run_benchmark(
             device="cpu", quick=True, output_path=str(tmp_path / "r.md"), skip_llm=True
         )
 
     openai_ctor.assert_not_called()
     llm_env_fn.assert_not_called()
     bench_llm_fn.assert_not_called()
+    out_path = result["report_path"]
     assert out_path.exists()
     md = out_path.read_text()
     assert "skipped: --skip-llm" in md
+    assert result["tasks"]["llm"]["status"] == "skipped"
 
 
 def test_run_benchmark_writes_default_output_path(tmp_path, monkeypatch):
@@ -177,7 +179,8 @@ def test_run_benchmark_writes_default_output_path(tmp_path, monkeypatch):
     monkeypatch.setattr(b, "_collect_llm_env", lambda: {"base_url": "x"})
     monkeypatch.chdir(tmp_path)
 
-    out_path = b.run_benchmark(device="cpu", quick=True, skip_llm=False)
+    result = b.run_benchmark(device="cpu", quick=True, skip_llm=False)
+    out_path = result["report_path"]
     assert out_path.parent == tmp_path
     assert out_path.name.startswith("benchmark-")
     assert out_path.name.endswith(".md")

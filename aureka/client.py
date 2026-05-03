@@ -167,12 +167,9 @@ def start_tray() -> None:
 
     try:
         import pystray
-        from PIL import Image, ImageDraw
+        from aureka._icon import make_tray_icon, apply_macos_template
 
-        size = 64
-        img = Image.new("RGB", (size, size), color=(30, 130, 200))
-        draw = ImageDraw.Draw(img)
-        draw.ellipse([16, 16, 48, 48], fill=(255, 255, 255))
+        img = make_tray_icon()
 
         def _make_menu():
             items = []
@@ -185,7 +182,12 @@ def start_tray() -> None:
             return pystray.Menu(*items)
 
         icon = pystray.Icon("aureka", img, "Aureka", menu=_make_menu())
-        icon.run()
+
+        def _on_setup(_icon):
+            _icon.visible = True
+            apply_macos_template(_icon)
+
+        icon.run(setup=_on_setup)
     except ImportError:
         print("[aureka] pystray not available; running without tray icon. Ctrl+C to quit.")
         try:
