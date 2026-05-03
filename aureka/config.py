@@ -60,6 +60,9 @@ class HotkeyConfig:
     # Optional domain hint prepended to LLM refine / translate system message.
     # Empty string preserves the original prompt byte-for-byte.
     topic: str = ""
+    # Pause/resume hotkey for live capture (aureka type / aureka listen).
+    # Same pynput format as `trigger`. Empty disables the binding.
+    pause: str = "<ctrl>+<alt>+p"
 
 
 @dataclass

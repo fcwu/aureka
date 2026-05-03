@@ -263,6 +263,13 @@ _HTML = r"""<!doctype html>
           </div>
         </div>
         <div class="field">
+          <div><div class="label">Pause hotkey</div><div class="help">Toggles capture pause/resume during voice input. Empty = no binding. Must differ from Trigger.</div></div>
+          <div class="row">
+            <input data-k="hotkey.pause">
+            <button class="btn ghost" type="button" id="hk-capture-pause">Press…</button>
+          </div>
+        </div>
+        <div class="field">
           <div><div class="label">Mode</div><div class="help"><code>hold-to-record</code> while pressed; <code>toggle</code> press to start/stop; <code>vad</code> auto-stops on silence.</div></div>
           <select data-k="hotkey.mode">
             <option>hold-to-record</option><option>toggle</option><option>vad</option>
@@ -512,7 +519,38 @@ _HTML = r"""<!doctype html>
   };
 
   // ── Hotkey capture ─────────────────────────────────────────────────────
-  $('#hk-capture').onclick = function() {
+  function bindCapture(btnId, fieldKey) {
+    const btn = $(btnId);
+    if (!btn) return;
+    btn.onclick = function() {
+      const input = document.querySelector(`[data-k="${fieldKey}"]`);
+      btn.textContent = 'Press a key…';
+      btn.disabled = true;
+      function done(text) {
+        btn.textContent = 'Press…'; btn.disabled = false;
+        window.removeEventListener('keydown', onKey, true);
+        if (text) setFieldValue(input, text);
+      }
+      function onKey(e) {
+        e.preventDefault(); e.stopPropagation();
+        if (e.key === 'Escape') { done(null); return; }
+        const mods = [];
+        if (e.ctrlKey)  mods.push('<ctrl>');
+        if (e.altKey)   mods.push('<alt>');
+        if (e.shiftKey) mods.push('<shift>');
+        if (e.metaKey)  mods.push('<cmd>');
+        if (['Control','Alt','Shift','Meta'].includes(e.key)) return;
+        const main = e.key.length === 1 ? e.key.toLowerCase() : `<${e.key.toLowerCase()}>`;
+        done([...mods, main].join('+'));
+      }
+      window.addEventListener('keydown', onKey, true);
+    };
+  }
+  bindCapture('#hk-capture', 'hotkey.trigger');
+  bindCapture('#hk-capture-pause', 'hotkey.pause');
+
+  // Legacy single-binding (kept disabled to avoid double-bind)
+  if (false) $('#hk-capture').onclick = function() {
     const btn = this;
     const input = $('[data-k="hotkey.trigger"]');
     btn.textContent = 'Press a key…';

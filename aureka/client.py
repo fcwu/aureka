@@ -2,6 +2,7 @@
 import asyncio
 import base64
 import json
+import sys
 import threading
 from typing import Any
 
@@ -169,6 +170,25 @@ def start_tray() -> None:
     hk = HotkeyManager(cfg.hotkey.trigger, on_press=on_press, on_release=on_release)
     hk.start()
 
+    # Optional pause/resume hotkey (separate manager so it doesn't interfere with trigger).
+    pause_hk = None
+    if cfg.hotkey.pause and cfg.hotkey.pause != cfg.hotkey.trigger:
+        def _toggle_pause():
+            if recorder.paused:
+                recorder.resume()
+                print("[aureka] resumed", file=sys.stderr)
+            else:
+                recorder.pause()
+                print("[aureka] paused", file=sys.stderr)
+        try:
+            pause_hk = HotkeyManager(cfg.hotkey.pause, on_press=_toggle_pause)
+            pause_hk.start()
+        except Exception as e:
+            print(f"[aureka] pause hotkey not registered: {e}", file=sys.stderr)
+    elif cfg.hotkey.pause == cfg.hotkey.trigger and cfg.hotkey.pause:
+        print("[aureka] warning: hotkey.pause collides with hotkey.trigger; pause hotkey not registered",
+              file=sys.stderr)
+
     try:
         import pystray
         from aureka._icon import make_tray_icon, apply_macos_template
@@ -200,3 +220,8 @@ def start_tray() -> None:
             pass
     finally:
         hk.stop()
+        if pause_hk is not None:
+            try:
+                pause_hk.stop()
+            except Exception:
+                pass

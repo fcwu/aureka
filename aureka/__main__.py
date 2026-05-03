@@ -33,11 +33,19 @@ def cmd_process(args):
         sys.exit(1)
 
     from aureka.pipeline import run_pipeline
+    from aureka.subtitle import parse_formats
+    try:
+        formats = parse_formats(args.format)
+    except ValueError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(2)
+
     run_pipeline(
         path,
         device=args.device,
         frame_interval=args.frame_interval,
         output_dir=args.output_dir,
+        formats=formats,
     )
 
 
@@ -261,10 +269,12 @@ def main():
     sub = parser.add_subparsers(dest="command", metavar="command")
 
     # process
-    p_proc = sub.add_parser("process", help="Batch-process video/audio to Markdown")
+    p_proc = sub.add_parser("process", help="Batch-process video/audio to Markdown / SRT / VTT")
     p_proc.add_argument("file", help="Input video or audio file")
     p_proc.add_argument("--frame-interval", type=int, default=30, metavar="SECS")
     p_proc.add_argument("--output-dir", default="output", metavar="DIR")
+    p_proc.add_argument("--format", default="md", metavar="SPEC",
+                        help="Output formats: md, srt, vtt, all, or comma list (e.g. md,srt). Default: md")
 
     # speak
     p_speak = sub.add_parser("speak", help="TTS read-aloud")

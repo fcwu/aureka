@@ -15,6 +15,7 @@ def run_pipeline(
     frame_interval: int = 30,
     output_dir: str | Path = "output",
     check_vlm: bool = True,
+    formats: set[str] | None = None,
 ) -> Path:
     input_path = Path(input_path)
     if input_path.suffix.lower() not in ffmpeg_utils.SUPPORTED_FORMATS:
@@ -66,8 +67,22 @@ def run_pipeline(
         summary = llm.summarize_transcript(transcript_text, desc_texts)
 
         out_path = formatter.output_path(input_path, output_dir)
-        content = formatter.format_output(segments, frame_descriptions, summary, input_path, duration)
-        out_path.write_text(content, encoding="utf-8")
+        formats = formats or {"md"}
 
-    print(f"Output: {out_path}")
+        if "md" in formats:
+            content = formatter.format_output(segments, frame_descriptions, summary, input_path, duration)
+            out_path.write_text(content, encoding="utf-8")
+            print(f"Output: {out_path}")
+        if "srt" in formats or "vtt" in formats:
+            from aureka import subtitle
+            seg_tuples = [(s.start, s.end, s.text) for s in segments]
+            if "srt" in formats:
+                srt_path = out_path.with_suffix(".srt")
+                subtitle.write_srt(seg_tuples, srt_path)
+                print(f"Output: {srt_path}")
+            if "vtt" in formats:
+                vtt_path = out_path.with_suffix(".vtt")
+                subtitle.write_vtt(seg_tuples, vtt_path)
+                print(f"Output: {vtt_path}")
+
     return out_path

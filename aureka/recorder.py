@@ -21,8 +21,21 @@ class Recorder:
         self.on_chunk = on_chunk
         self._recording = False
         self._toggle_active = False
+        self._paused = False
         self._thread: threading.Thread | None = None
         self._stop_event = threading.Event()
+
+    @property
+    def paused(self) -> bool:
+        return self._paused
+
+    def pause(self) -> None:
+        """Drop incoming audio chunks until resume() while keeping the stream
+        and downstream LLM sessions alive."""
+        self._paused = True
+
+    def resume(self) -> None:
+        self._paused = False
 
     def start(self) -> None:
         if self._recording:
@@ -66,6 +79,8 @@ class Recorder:
             while not self._stop_event.is_set():
                 chunk, _ = stream.read(CHUNK_FRAMES)
                 chunk = chunk.flatten()
+                if self._paused:
+                    continue  # drop chunk; do not append, do not VAD-evaluate, do not on_chunk
                 self._collected_chunks.append(chunk.copy())
 
                 if self.mode == "vad":
