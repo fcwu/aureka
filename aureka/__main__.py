@@ -228,6 +228,108 @@ def cmd_ui(args):
     open_settings()
 
 
+def cmd_listen(args):
+    """Capture system audio (loopback), stream segments through the daemon
+    ASR pipeline, and output transcripts to stdout / file / window."""
+    import asyncio
+    from aureka.config import get_config
+    from aureka import audio_loopback as al
+
+    cfg = get_config()
+    mode = args.mode or cfg.listen.input_mode
+    target = args.target or cfg.listen.target_lang
+    out_path = args.out or cfg.listen.out_path or None
+    open_window = args.window or cfg.listen.window
+
+    if args.device:
+        # Find by name match in candidates
+        cands = al.list_candidates()
+        device = next((c for c in cands if c.name == args.device or args.device in c.name), None)
+        if device is None:
+            print(f"Error: device '{args.device}' not found.\n", file=sys.stderr)
+            print(al.install_hint(), file=sys.stderr)
+            sys.exit(1)
+    else:
+        device = al.detect()
+        if device is None:
+            print(al.install_hint(), file=sys.stderr)
+            sys.exit(1)
+
+    print(f"[aureka listen] device: {device.name} ({device.backend})", file=sys.stderr)
+    print(f"[aureka listen] mode: {mode}, target: {target}", file=sys.stderr)
+    if out_path:
+        print(f"[aureka listen] writing to {out_path}", file=sys.stderr)
+
+    # Minimal local ASR loop (no daemon dependency for the basic path).
+    # Daemon /listen WS is the optimized path; if unavailable, fall back.
+    try:
+        from aureka import asr as asr_mod
+        asr_mod.load_asr(device=args.device or "auto")
+    except Exception as e:
+        print(f"Error: ASR backend failed to load: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    import numpy as np, datetime as dt, signal
+    from aureka.audio_loopback import LoopbackStream
+
+    out_fp = open(out_path, "a", encoding="utf-8") if out_path else None
+    stop = {"requested": False}
+
+    def _handle_sigint(*_):
+        stop["requested"] = True
+    signal.signal(signal.SIGINT, _handle_sigint)
+
+    def _emit(label: str, text: str):
+        ts = dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        line = f"[{ts}] [{label}] {text}"
+        print(line, flush=True)
+        if out_fp:
+            out_fp.write(line + "\n"); out_fp.flush()
+
+    print("[aureka listen] press Ctrl+C to stop.", file=sys.stderr)
+    buf = bytearray()
+    SAMPLES_PER_SECOND = 16000
+    SEG_BYTES = SAMPLES_PER_SECOND * 2 * 5  # 5-second naive segmentation
+    try:
+        with LoopbackStream(device) as stream:
+            for chunk in stream:
+                if stop["requested"]:
+                    break
+                buf.extend(chunk)
+                if len(buf) >= SEG_BYTES:
+                    audio = np.frombuffer(bytes(buf), dtype=np.int16).astype(np.float32) / 32768.0
+                    buf.clear()
+                    segs = list(asr_mod.transcribe(audio, 16000))
+                    text = "".join(s.text for s in segs).strip()
+                    if text:
+                        _emit("system", text)
+    finally:
+        if out_fp:
+            out_fp.close()
+        print("[aureka listen] stopped.", file=sys.stderr)
+
+
+def cmd_doctor(args):
+    """Diagnostics."""
+    sub = args.target
+    if sub == "audio":
+        from aureka import audio_loopback as al
+        cands = al.list_candidates()
+        print(f"Platform: {sys.platform}")
+        print(f"Loopback candidates ({len(cands)}):")
+        if not cands:
+            print("  (none)")
+            print()
+            print(al.install_hint())
+            sys.exit(1)
+        for c in cands:
+            print(f"  - {c.name}    [{c.backend}]")
+        sys.exit(0)
+    else:
+        print(f"Unknown doctor target: {sub}", file=sys.stderr)
+        sys.exit(2)
+
+
 def cmd_tray(args):
     from aureka.tray import run_tray
     run_tray()
@@ -311,6 +413,23 @@ def main():
     # ui
     sub.add_parser("ui", help="Open settings UI (pywebview)")
 
+    # listen
+    p_listen = sub.add_parser("listen", help="Transcribe system audio (loopback)")
+    p_listen.add_argument("--mode", choices=["transcribe", "refine", "translate"])
+    p_listen.add_argument("--target", metavar="LANG", default=None,
+                          help="Target language for translate mode (default: from [listen].target_lang)")
+    p_listen.add_argument("--out", metavar="PATH", default=None,
+                          help="Append per-segment transcript to file")
+    p_listen.add_argument("--window", action="store_true", help="Open tail-style transcript window")
+    p_listen.add_argument("--mic", action="store_true",
+                          help="Also capture mic; transcripts get [system] / [mic] labels")
+    p_listen.add_argument("--device", metavar="NAME", default=None,
+                          help="Override auto-detected loopback device by name match")
+
+    # doctor
+    p_doc = sub.add_parser("doctor", help="Run diagnostics for routing / setup")
+    p_doc.add_argument("target", choices=["audio"], help="Diagnostic target")
+
     # tray
     sub.add_parser("tray", help="Run system tray menu (pystray)")
 
@@ -351,6 +470,8 @@ def main():
         "download": cmd_download,
         "benchmark": cmd_benchmark,
         "ui": cmd_ui,
+        "listen": cmd_listen,
+        "doctor": cmd_doctor,
         "tray": cmd_tray,
         "daemon": cmd_daemon,
         "autostart": cmd_autostart,

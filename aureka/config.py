@@ -66,6 +66,21 @@ class HotkeyConfig:
 
 
 @dataclass
+class ListenConfig:
+    # Empty string = auto-detect first loopback candidate.
+    device: str = ""
+    # Default mode for `aureka listen`: transcribe / refine / translate.
+    input_mode: str = "transcribe"
+    target_lang: str = "zh"
+    # Open a tail-style transcript window by default.
+    window: bool = False
+    # When non-empty, append per-segment transcript to this file.
+    out_path: str = ""
+    # Server-side: close idle /listen sessions after this many seconds.
+    idle_timeout_seconds: int = 1800
+
+
+@dataclass
 class Config:
     llm: LLMConfig = field(default_factory=LLMConfig)
     vlm: VLMConfig = field(default_factory=VLMConfig)
@@ -73,6 +88,7 @@ class Config:
     tts: TTSConfig = field(default_factory=TTSConfig)
     daemon: DaemonConfig = field(default_factory=DaemonConfig)
     hotkey: HotkeyConfig = field(default_factory=HotkeyConfig)
+    listen: ListenConfig = field(default_factory=ListenConfig)
 
 
 def _load_toml(path: Path) -> dict:
@@ -109,6 +125,8 @@ def load_config(path: str | Path | None = None) -> Config:
         _apply(cfg.daemon, raw["daemon"])
     if "hotkey" in raw:
         _apply(cfg.hotkey, raw["hotkey"])
+    if "listen" in raw:
+        _apply(cfg.listen, raw["listen"])
     return cfg
 
 

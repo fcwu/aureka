@@ -67,9 +67,14 @@ ui = [
     "tomlkit>=0.13",
 ]
 
+# System audio loopback capture for `aureka listen`
+listen = [
+    "soundcard>=0.4.3",
+]
+
 # Full install (torch installed separately for GPU)
 all = [
-    "aureka[asr,tts,batch,voice,ui]",
+    "aureka[asr,tts,batch,voice,ui,listen]",
 ]
 
 # Development / testing
