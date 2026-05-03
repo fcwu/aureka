@@ -126,3 +126,138 @@
 - **WHEN** 執行 `aureka --device cpu benchmark`
 - **THEN** ASR 與 TTS 載入時使用 `cpu` 裝置
 
+### Requirement: type 子命令 --topic 旗標
+系統 SHALL 為 `aureka type` 子命令提供可選 `--topic STRING` 旗標，覆寫該次調用的 topic（不寫回 config.toml）。優先順序：CLI 旗標 > config.toml 設定 > 空字串。
+
+#### Scenario: CLI 旗標覆寫 config
+- **WHEN** config.toml 有 `[hotkey] topic = "general"`、執行 `aureka type --topic "ZFS storage"`
+- **THEN** 該次 LLM session 使用 `"ZFS storage"`，config 檔不被修改
+
+#### Scenario: 沒給 --topic 時 fallback config
+- **WHEN** config.toml 有 `[hotkey] topic = "QTS firmware"`、執行 `aureka type` 不帶 `--topic`
+- **THEN** 該次 LLM session 使用 `"QTS firmware"`
+
+#### Scenario: 都沒設定時為空
+- **WHEN** config.toml 沒 `[hotkey] topic`、執行 `aureka type`
+- **THEN** topic 為 `""`，prompt 與既有版本一致
+
+### Requirement: ui 子命令
+系統 SHALL 提供 `aureka ui` 子命令，啟動 pywebview 設定視窗。視窗詳細行為定義於 `settings-ui` capability。
+
+#### Scenario: 啟動視窗
+- **WHEN** 使用者在 shell 執行 `aureka ui`
+- **THEN** 系統建立 pywebview 原生視窗，載入 `aureka.ui` 內嵌 HTML 並啟動 JS bridge
+
+#### Scenario: 缺少相依套件
+- **WHEN** pywebview 未安裝
+- **THEN** 命令以非零 exit code 結束，stderr 顯示 `pip install 'aureka[ui]'` 提示
+
+### Requirement: tray 子命令
+系統 SHALL 提供 `aureka tray` 子命令，啟動系統 tray icon 與選單。Tray 啟動時若 daemon 未在監聽 SHALL 自動 spawn daemon（詳見 `voice-input` capability）。
+
+#### Scenario: 啟動 tray
+- **WHEN** 使用者在 shell 執行 `aureka tray`
+- **THEN** 系統建立 menu bar / system tray icon，提供 Settings、Start daemon、Stop daemon、Quit 等選單項
+
+#### Scenario: 自動啟 daemon
+- **WHEN** 執行 `aureka tray` 但 daemon 未運行
+- **THEN** Tray 在 icon 顯示前 spawn `aureka daemon start`，使用者下次按下熱鍵立刻可用
+
+### Requirement: autostart 子命令
+系統 SHALL 提供 `aureka autostart {install,uninstall,status}` 子命令，跨平台管理登入時自動啟動的 launch agent / scheduled task。**install** 安裝的命令 MUST 為 `aureka tray`（不直接啟動 `_daemon_serve`），讓登入後使用者同時取得 daemon + tray icon。
+
+#### Scenario: macOS install
+- **WHEN** 在 macOS 執行 `aureka autostart install`
+- **THEN** 系統寫入 `~/Library/LaunchAgents/com.aureka.daemon.plist`，`ProgramArguments` 指向 `python -m aureka tray`，`ProcessType` 為 `Adaptive`，`KeepAlive.SuccessfulExit=False`、`KeepAlive.Crashed=True`，並 `launchctl bootstrap` 成功
+
+#### Scenario: Windows install
+- **WHEN** 在 Windows 執行 `aureka autostart install`
+- **THEN** 系統建立 schtasks at-logon task，命令為 `cmd /c "set AUREKA_CONFIG=… && python -m aureka tray"`
+
+#### Scenario: 反向卸載
+- **WHEN** 執行 `aureka autostart uninstall`
+- **THEN** 對應平台的 launch agent / task 被移除，後續登入不再自動啟動
+
+#### Scenario: 查詢狀態
+- **WHEN** 執行 `aureka autostart status`
+- **THEN** 系統印出「installed / not installed」與相關詳情（plist 路徑、上次執行結果等），exit code 0 表示已安裝、1 表示未安裝
+
+### Requirement: process 子命令 --format 旗標
+`aureka process` SHALL 接受 `--format` 旗標，值為 `md` / `srt` / `vtt` / `all` 或任意逗號組合，控制輸出哪些字幕 / 文件格式。
+
+#### Scenario: 多格式並存
+- **WHEN** 執行 `aureka process video.mp4 --format md,vtt`
+- **THEN** 系統同時產出 `.md` 與 `.vtt`
+
+#### Scenario: 無效值報錯
+- **WHEN** 執行 `aureka process video.mp4 --format pdf`
+- **THEN** 系統以 non-zero exit code 結束，stderr 印出有效值清單
+
+### Requirement: type / listen 子命令尊重 [hotkey].pause
+`aureka type` 與 `aureka listen` SHALL 在啟動時讀取 `cfg.hotkey.pause`，若不為空則註冊該熱鍵為暫停 / 繼續切換。
+
+#### Scenario: 預設 pause 鍵
+- **WHEN** config 沒設 `[hotkey].pause`、執行 `aureka type`
+- **THEN** 系統綁定預設 `<ctrl>+<alt>+p` 為暫停鍵
+
+#### Scenario: 自訂 pause 鍵
+- **WHEN** config `[hotkey].pause = "<f12>"`、執行 `aureka type`
+- **THEN** 系統改綁定 F12 為暫停鍵
+
+#### Scenario: 與 trigger 衝突警告
+- **WHEN** `[hotkey].trigger` 與 `[hotkey].pause` 設為同一值
+- **THEN** 系統 stderr 印出警告，pause 熱鍵不註冊（trigger 優先）
+
+### Requirement: listen 子命令
+系統 SHALL 提供 `aureka listen` 子命令，啟動系統音訊 loopback 擷取與串流轉錄。
+
+#### Scenario: 啟動 listen
+- **WHEN** 使用者執行 `aureka listen`
+- **THEN** 系統偵測平台 loopback 裝置，開始持續擷取並 VAD 切段，每段送 ASR、依模式可選擇送 LLM refine / translate
+
+#### Scenario: 模式 / 語言 / target 等旗標
+- **WHEN** 執行 `aureka listen --mode translate --target zh`
+- **THEN** transcript 經 ASR 後送 LLM 翻譯為中文輸出
+
+#### Scenario: 輸出 sink
+- **WHEN** 執行 `aureka listen --out meeting.txt`
+- **THEN** 每段 transcript 即時 append 到 `meeting.txt`，行格式 `[YYYY-MM-DD HH:MM:SS] [system] <text>`
+
+#### Scenario: 視窗模式
+- **WHEN** 執行 `aureka listen --window`
+- **THEN** 系統以 pywebview 開啟 tail-style transcript 視窗，每段 transcript 即時追加；視窗不搶焦點
+
+#### Scenario: 同時擷取麥克風
+- **WHEN** 執行 `aureka listen --mic`
+- **THEN** 系統開兩路擷取（loopback + mic），輸出 transcript 帶 label `[system]` / `[mic]`
+
+#### Scenario: 顯式裝置覆寫
+- **WHEN** 執行 `aureka listen --device "BlackHole 2ch"`
+- **THEN** 系統略過 auto-detect，直接使用指定裝置；找不到時報錯離開
+
+### Requirement: doctor audio 子命令
+系統 SHALL 提供 `aureka doctor audio` 子命令印出當前平台音訊裝置診斷資訊，協助排查 loopback 設定問題。
+
+#### Scenario: 診斷輸出
+- **WHEN** 執行 `aureka doctor audio`
+- **THEN** stdout 列出（1）所有音訊輸入裝置與 sample rate；（2）標記哪些是 loopback；（3）若為 macOS，提示是否在 Multi-Output Device 中正確路由
+
+### Requirement: process 子命令 --diarize / --num-speakers / --no-speaker-labels
+`aureka process` SHALL 接受 `--diarize`、`--num-speakers N`、`--no-speaker-labels` 三個與講者辨識相關的旗標。
+
+#### Scenario: 啟用講者辨識
+- **WHEN** 執行 `aureka process meeting.mp4 --diarize`
+- **THEN** 系統在 ASR 後額外跑 diarization，所有輸出格式都帶講者標籤
+
+#### Scenario: 指定講者人數
+- **WHEN** 執行 `aureka process meeting.mp4 --diarize --num-speakers 3`
+- **THEN** spectralcluster 強制以 3 群輸出；忽略自動偵測
+
+#### Scenario: 講者辨識但不顯示文字標籤
+- **WHEN** 執行 `aureka process meeting.mp4 --diarize --no-speaker-labels`
+- **THEN** Markdown / SRT / VTT 內不顯示 `[S1]` 等前綴；HTML 仍以顏色標記講者
+
+#### Scenario: --diarize 與 --format html 組合
+- **WHEN** 執行 `aureka process meeting.mp4 --diarize --format html`
+- **THEN** 產出的 HTML 含逐字稿、講者顏色、波形互動播放器
+
