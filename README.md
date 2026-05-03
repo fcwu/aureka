@@ -100,17 +100,6 @@ aureka type --no-streaming
 
 過程中 daemon 會推 phase 事件回 client，stderr 會看到 `[aureka] transcribing audio... / finalizing last segment... / refining with LLM...`，方便判斷卡在哪一步。
 
-### 升級提醒（從 0.1.x → 0.2.x）
-
-ASR 預設模型從 `large-v3` 改為 `medium`：較小、較快，但中文精度小幅降低。要回 `large-v3`，在 `config.toml` 加：
-
-```toml
-[asr]
-model = "large-v3"
-```
-
-`large-v3` 的舊 cache（~3GB）不會自動刪，要省空間執行 `huggingface-cli delete-cache`。同時移除了 `[asr-thewhisper]` extra（從未真正運作），請改用標準 `[asr]` extra。
-
 ### 選 ASR 模型大小
 
 `config.toml` 的 `[asr] model` 欄位決定 faster-whisper 用哪個 size：
@@ -321,6 +310,40 @@ aureka autostart status      # 查詢狀態
 
 啟動的命令是 `aureka tray`——tray 自動把 daemon 拉起，所以登入後 menu bar / system tray 出現 icon、daemon 同時在背景就緒、按下熱鍵立即可用。Quit-from-menu 不會被 launchd 重新拉起；crash 才會。
 
+## 系統音訊轉錄（`aureka listen`）
+
+把**電腦正在播的聲音**（不是麥克風）每 5 秒切一段、餵給 ASR、結果印到 stdout。常見用途：邊看 YouTube／開 Zoom／聽 Podcast 邊產出時間戳記字幕，或丟到檔案備查。
+
+```bash
+aureka listen                       # 預設 transcribe 模式，stdout 印每段時間戳 + 文字
+aureka listen --mode refine         # 過 LLM 修標點刪贅字
+aureka listen --mode translate --target en   # 邊聽邊翻成英文
+aureka listen --out captions.txt    # 同時 append 到檔案
+aureka listen --window              # 開一個 tail-style 視窗即時顯示
+aureka listen --mic                 # 連麥克風一起抓（每段標 [system] 或 [mic]）
+aureka listen --device "BlackHole 2ch"   # 指定 loopback 裝置（覆蓋自動偵測）
+```
+
+預設裝置是平台原生的 loopback：
+
+| 平台 | 預設來源 | 額外要裝 |
+|------|---------|---------|
+| macOS | BlackHole / Loopback / Aggregate device | [BlackHole](https://github.com/ExistentialAudio/BlackHole)（免費） |
+| Windows | WASAPI loopback | 內建 |
+| Linux | PulseAudio / PipeWire monitor | 內建（多數發行版） |
+
+`config.toml` 的 `[listen]` 段可設預設值（mode / target_lang / window / out_path / device）。Ctrl+C 結束。
+
+## 診斷（`aureka doctor`）
+
+`listen` 跑不起來、loopback 找不到裝置、不知道哪個介面叫什麼名字 → 跑診斷：
+
+```bash
+aureka doctor audio
+```
+
+輸出當前平台所有偵測到的 loopback candidates 與 backend（pulseaudio / wasapi-loopback / coreaudio）。沒任何 candidate 時印安裝提示（如 macOS 提示裝 BlackHole）。將來可能新增 `aureka doctor llm` / `doctor models` 等其他 target。
+
 ## 快速測試（不需真實 GPU 或模型）
 
 ### Step 1：生成測試音訊
@@ -398,7 +421,7 @@ pytest tests/ -v -m e2e
 ```
 aureka/
 ├── aureka/
-│   ├── __main__.py       # CLI 入口（process / speak / type / download / benchmark / ui / tray / autostart / daemon …）
+│   ├── __main__.py       # CLI 入口（process / speak / type / download / benchmark / ui / tray / autostart / listen / doctor / daemon）
 │   ├── config.py         # config.toml 載入（AUREKA_CONFIG env var）
 │   ├── device.py         # 裝置偵測（cuda / mps / cpu）
 │   ├── asr.py            # faster-whisper 封裝（model 由 [asr] config 決定）
@@ -410,6 +433,7 @@ aureka/
 │   ├── pipeline.py       # 批次流程編排
 │   ├── daemon.py         # FastAPI daemon（WS /ws + POST /speak / /process / /reload）
 │   ├── recorder.py       # 麥克風錄音（hold / toggle / VAD）
+│   ├── audio_loopback.py # 系統音訊抓取（aureka listen / doctor audio）
 │   ├── hotkey.py         # 全域熱鍵（pynput）
 │   ├── client.py         # 語音輸入 client core（streaming WS + 注入）
 │   ├── tray.py           # 系統托盤入口（pystray）
