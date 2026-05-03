@@ -266,7 +266,7 @@ processed_at: 2026-05-01T14:30:00
 ## 原始轉錄
 ```
 
-完成後可直接丟入 mykb `inbox/` 走 triage → ingest 流程。
+frontmatter + 標準 markdown，可直接丟到 Obsidian / Logseq / Dendron 等知識庫工具，或丟給自己的 ingestion pipeline。`output-dir` 預設 `./output/`，可用 `--output-dir` 改。
 
 ## TTS 回讀
 
@@ -284,7 +284,7 @@ aureka speak "測試" --output out.wav
 aureka speak "再快一點" --speed 1.3
 ```
 
-Daemon 在跑時 `aureka speak` 會打 daemon 的 `POST /speak` 端點共用已暖好的 Kokoro pipeline；daemon 沒在跑會 fallback 到本地冷啟動。
+Daemon 在跑時走 daemon 的暖機 pipeline 反應更快；沒在跑會自動本地起一個。
 
 ## 語音輸入（Typeless-like）
 
