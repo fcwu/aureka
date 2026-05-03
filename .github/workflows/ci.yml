@@ -30,6 +30,9 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -e ".[dev]"
           python -m pip install openai fastapi "uvicorn[standard]" numpy soundfile pillow httpx starlette
+          # Test-side deps: tests mock the heavy ML libs (kokoro, faster-whisper)
+          # but still need these importable for patch() targets and module loading.
+          python -m pip install huggingface_hub silero-vad tomlkit pywebview
 
       - name: Run tests
         env:
