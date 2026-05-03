@@ -213,7 +213,7 @@ def test_save_config_round_trip_preserves_comments(tmp_path, monkeypatch):
 base_url = "http://127.0.0.1:1234/v1"
 api_key  = "lm-studio"
 model    = "auto"
-""")
+""", encoding="utf-8")
     monkeypatch.setenv("AUREKA_CONFIG", str(cfg))
 
     api = Api()
@@ -223,7 +223,7 @@ model    = "auto"
         r = api.save_config(payload)
     assert r["ok"] is True
 
-    text = cfg.read_text()
+    text = cfg.read_text(encoding="utf-8")
     assert "# Aureka 設定檔 — 重要註解" in text
     assert "# LLM 端點" in text
     assert 'base_url = "http://10.0.0.1:9999/v1"' in text

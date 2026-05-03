@@ -765,7 +765,7 @@ class Api:
         path = _config_path()
         try:
             current = load_config(path)
-            doc = tomlkit.parse(path.read_text()) if path.exists() else tomlkit.document()
+            doc = tomlkit.parse(path.read_text(encoding="utf-8")) if path.exists() else tomlkit.document()
 
             for section_name in ("llm", "vlm", "asr", "tts", "daemon", "hotkey"):
                 section = payload.get(section_name) or {}
@@ -785,7 +785,7 @@ class Api:
                         doc[section_name][key] = coerced
 
             path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(tomlkit.dumps(doc))
+            path.write_text(tomlkit.dumps(doc), encoding="utf-8")
             return {"ok": True, "path": str(path), "reload": _try_reload_daemon()}
         except Exception as e:
             return {"ok": False, "error": f"{type(e).__name__}: {e}"}

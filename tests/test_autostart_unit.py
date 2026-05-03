@@ -1,9 +1,17 @@
 """Unit tests for aureka.autostart — login command builders."""
 from __future__ import annotations
 
+import os
+import sys
+
 import pytest
 
 pytestmark = pytest.mark.unit
+
+mac_only = pytest.mark.skipif(
+    not hasattr(os, "getuid"),
+    reason="macOS-specific (uses os.getuid for launchctl bootstrap)",
+)
 
 
 def test_serve_args_targets_aureka_tray():
@@ -39,6 +47,7 @@ def test_win_command_injects_aureka_config_when_present(tmp_path, monkeypatch):
     assert f'set "AUREKA_CONFIG={cfg.resolve()}"' in cmd
 
 
+@mac_only
 def test_mac_install_writes_adaptive_process_type(tmp_path, monkeypatch):
     """The plist that lands at install must declare ProcessType=Adaptive
     (tray needs UI access; Background suppresses NSStatusItem rendering)."""
