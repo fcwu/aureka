@@ -43,13 +43,6 @@
 - [開機自動啟動（`aureka autostart`）](#開機自動啟動aureka-autostart)
 - [系統音訊轉錄（`aureka listen`）](#系統音訊轉錄aureka-listen)
 - [診斷（`aureka doctor`）](#診斷aureka-doctor)
-- [快速測試（不需真實 GPU 或模型）](#快速測試不需真實-gpu-或模型)
-  - [Step 1：生成測試音訊](#step-1生成測試音訊)
-  - [Step 2：啟動 mock LLM server](#step-2啟動-mock-llm-server)
-  - [Step 3：啟動 daemon（測試模式，跳過模型載入）](#step-3啟動-daemon測試模式跳過模型載入)
-  - [Step 4：測試 WebSocket 語音輸入](#step-4測試-websocket-語音輸入)
-  - [Step 5：測試批次處理](#step-5測試批次處理)
-- [執行測試](#執行測試)
 - [平台支援](#平台支援)
 - [環境變數](#環境變數)
 - [License](#license)
@@ -131,7 +124,7 @@ cp config.example.toml config.toml
 
 ### 即時轉錄（streaming）
 
-`aureka type` 預設啟用 streaming：daemon 端用 silero-vad 切句，每段 close 立刻轉錄並推回 client。
+`aureka type` 預設啟用 streaming：講話過程中 daemon 邊收邊以 VAD 切句、每段轉完立刻推回 client，不必等講完。
 
 行為依 mode 而異：
 
@@ -144,9 +137,7 @@ cp config.example.toml config.toml
 aureka type --no-streaming
 ```
 
-技術上是 daemon 端用 silero-vad 偵測語句邊界，每段 close 時立刻轉錄並推 partial 回 client。silero-vad 無法載入時自動 fallback 回 buffer 模式。
-
-過程中 daemon 會推 phase 事件回 client，stderr 會看到 `[aureka] transcribing audio... / finalizing last segment... / refining with LLM...`，方便判斷卡在哪一步。
+跑的過程 stderr 會印 `[aureka] transcribing... / finalizing... / refining...` 三個 phase log，方便判斷卡在哪一步。
 
 ### 選 ASR 模型大小
 
@@ -172,7 +163,6 @@ aureka download
 ```
 
 這會把 Kokoro TTS 與 Whisper ASR 模型一次下載完，並顯示進度條。已下載的檔案會自動跳過。
-HuggingFace cache 路徑可透過 `HF_HOME` 環境變數自訂。
 
 ### Benchmark
 
@@ -239,7 +229,7 @@ aureka process podcast.mp3 --diarize --no-speaker-labels  # md/srt/vtt 不加 [S
 | `srt` / `vtt` | 標準字幕格式，可丟給影片播放器 |
 | `html` | **互動式 transcript player**：自包含單檔，內嵌音訊 + canvas 波形；點任意段或波形位置跳到對應時間，scroll 到該段並 highlight；diarize 時各說話人不同色，波形上對應區段也標色 |
 
-`--diarize` 用 resemblyzer + spectralcluster 做完全離線 voice clustering（不必 HuggingFace token、不像 pyannote 要授權）。第一次跑時自動抓 ~17MB 的 voice encoder weight。
+`--diarize` 完全離線跑（不需要 HuggingFace token），第一次使用會自動抓 ~17MB 的 voice encoder。
 
 ### Markdown 輸出範例
 
@@ -363,7 +353,6 @@ aureka ui          # 開設定視窗（pywebview）
 - **Models 分頁**：顯示 Kokoro 與 faster-whisper 是否已下載 + 大小，可直接按下載並看進度條。
 - **Tools 分頁**：跑 quick benchmark，跑完依結果建議調整 `tts.device` / `asr.model` / `llm.thinking_budget`，按 Apply 就填到對應欄位。
 - **Port Auto / Hotkey Press…**：兩個小按鈕分別自動找空 port、捕捉鍵盤組合填到 `daemon.port` / `hotkey.trigger`。
-- 沒有 Save / Close 按鈕——靠系統視窗框關閉。
 
 需要先安裝：
 
@@ -386,11 +375,11 @@ aureka autostart status      # 查詢狀態
 | macOS   | launchd user agent | `~/Library/LaunchAgents/com.aureka.daemon.plist` |
 | Windows | Task Scheduler     | task name `Aureka`（at-logon）                   |
 
-啟動的命令是 `aureka tray`——tray 自動把 daemon 拉起，所以登入後 menu bar / system tray 出現 icon、daemon 同時在背景就緒、按下熱鍵立即可用。Quit-from-menu 不會被 launchd 重新拉起；crash 才會。
+啟動的命令是 `aureka tray`——tray 自動把 daemon 拉起，所以登入後 menu bar / system tray 出現 icon、daemon 同時在背景就緒、按下熱鍵立即可用。
 
 ## 系統音訊轉錄（`aureka listen`）
 
-把**電腦正在播的聲音**（不是麥克風）每 5 秒切一段、餵給 ASR、結果印到 stdout。常見用途：邊看 YouTube／開 Zoom／聽 Podcast 邊產出時間戳記字幕，或丟到檔案備查。
+把**電腦正在播的聲音**（不是麥克風）即時轉錄。常見用途：邊看 YouTube／開 Zoom／聽 Podcast 邊產出時間戳記字幕，或丟到檔案備查。
 
 ```bash
 aureka listen                       # 預設 transcribe 模式，stdout 印每段時間戳 + 文字
@@ -420,79 +409,7 @@ aureka listen --device "BlackHole 2ch"   # 指定 loopback 裝置（覆蓋自動
 aureka doctor audio
 ```
 
-輸出當前平台所有偵測到的 loopback candidates 與 backend（pulseaudio / wasapi-loopback / coreaudio）。沒任何 candidate 時印安裝提示（如 macOS 提示裝 BlackHole）。將來可能新增 `aureka doctor llm` / `doctor models` 等其他 target。
-
-## 快速測試（不需真實 GPU 或模型）
-
-### Step 1：生成測試音訊
-
-```bash
-python tests/scripts/gen-test-audio.py
-# → tests/fixtures/silence-1s.wav
-# → tests/fixtures/speech-zh.wav
-```
-
-### Step 2：啟動 mock LLM server
-
-```bash
-python tests/scripts/mock-llm-server.py --port 11434 &
-# 模擬 /v1/chat/completions（含 vision）和 /v1/models
-```
-
-### Step 3：啟動 daemon（測試模式，跳過模型載入）
-
-```bash
-AUREKA_TEST_MODE=1 AUREKA_CONFIG=tests/config.test.toml aureka daemon start
-curl http://127.0.0.1:7777/health
-# → {"status":"ok","version":"0.2.0"}
-```
-
-### Step 4：測試 WebSocket 語音輸入
-
-```bash
-python tests/scripts/ws-client-test.py \
-  --audio tests/fixtures/speech-zh.wav \
-  --mode transcribe
-
-# 預期輸出：
-# [←] {"type": "transcript", "text": "[mock transcript]", "final": true}
-# [←] {"type": "done"}
-```
-
-```bash
-python tests/scripts/ws-client-test.py \
-  --audio tests/fixtures/speech-zh.wav \
-  --mode refine
-
-# 預期輸出：
-# [←] {"type": "transcript", ...}
-# [←] {"type": "refined", "text": "這是一段經過整理的文字。", "final": true}
-# [←] {"type": "done"}
-```
-
-### Step 5：測試批次處理
-
-```bash
-AUREKA_TEST_MODE=1 AUREKA_CONFIG=tests/config.test.toml \
-  aureka process tests/fixtures/silence-1s.wav --output-dir /tmp/aureka-out
-# → /tmp/aureka-out/YYYYMMDD-silence-1s.md
-```
-
-## 執行測試
-
-```bash
-# 全部測試（unit + integration + e2e）
-pytest tests/ -v
-
-# 只跑 unit（快，無外部相依）
-pytest tests/ -v -m unit
-
-# 只跑 integration（需 mock LLM server，由 conftest 自動啟動）
-pytest tests/ -v -m integration
-
-# 只跑 e2e（啟動真實 daemon 子程序）
-pytest tests/ -v -m e2e
-```
+輸出當前平台所有偵測到的 loopback candidates 與 backend。沒任何 candidate 時會印安裝提示（如 macOS 提示裝 BlackHole）。
 
 ## 平台支援
 
@@ -502,8 +419,6 @@ pytest tests/ -v -m e2e
 | AMD Linux     | ✅       | ✅       | ROCm (faster-whisper) | ROCm (Kokoro) |
 | Apple Silicon | ✅       | ✅       | CPU (faster-whisper)  | MPS (Kokoro)  |
 | CPU only      | ✅       | ✅       | CPU (faster-whisper)  | CPU (Kokoro)  |
-
-> WSL2 為開發環境，GPU 不可用，所有測試以 CPU + mock 模式執行。
 
 ## 環境變數
 
