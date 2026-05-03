@@ -106,6 +106,8 @@ def cmd_type(args):
     cfg = get_config()
     mode = args.mode or cfg.hotkey.input_mode
     lang = args.lang or cfg.hotkey.lang
+    # Topic precedence: --topic flag > [hotkey].topic > "" (no-op).
+    topic = args.topic if args.topic is not None else cfg.hotkey.topic
     streaming = not getattr(args, "no_streaming", False)
 
     # Try to connect to daemon first
@@ -140,7 +142,7 @@ def cmd_type(args):
 
             # Run input() on a thread so we don't block the asyncio loop
             session_task = asyncio.create_task(
-                _voice_session(mode, lang, queue, streaming=True)
+                _voice_session(mode, lang, queue, streaming=True, topic=topic)
             )
 
             await loop.run_in_executor(None, _wait_for_enter)
@@ -166,7 +168,7 @@ def cmd_type(args):
         return
 
     if daemon_available:
-        asyncio.run(_voice_session(mode, lang, audio_data.tobytes(), streaming=False))
+        asyncio.run(_voice_session(mode, lang, audio_data.tobytes(), streaming=False, topic=topic))
     else:
         import numpy as np
         from aureka import asr, injector, llm as llm_mod
@@ -178,7 +180,7 @@ def cmd_type(args):
 
             async def _collect():
                 result = ""
-                async for token in llm_mod.llm_refine_stream(transcript, mode=mode, lang=lang):
+                async for token in llm_mod.llm_refine_stream(transcript, mode=mode, lang=lang, topic=topic):
                     result += token
                 return result
 
@@ -276,6 +278,8 @@ def main():
     p_type = sub.add_parser("type", help="Voice input → text injection")
     p_type.add_argument("--mode", choices=["transcribe", "refine", "translate"])
     p_type.add_argument("--lang", metavar="LANG", help="Language code (e.g. zh, en, ja)")
+    p_type.add_argument("--topic", metavar="STRING", default=None,
+                        help="Domain hint added to LLM prompt for this invocation; overrides [hotkey].topic")
     p_type.add_argument("--no-streaming", action="store_true",
                         help="Disable streaming (record fully then transcribe; older behavior)")
 

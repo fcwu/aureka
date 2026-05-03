@@ -278,6 +278,10 @@ _HTML = r"""<!doctype html>
           <div><div class="label">Lang</div><div class="help">ISO 639-1 hint passed to ASR.</div></div>
           <input data-k="hotkey.lang" list="hotkey-langs">
         </div>
+        <div class="field">
+          <div><div class="label">Topic / context</div><div class="help">Short phrase (≤200 chars) describing the domain — e.g. <code>"ZFS storage"</code>. Refine / translate add this as an LLM hint so jargon survives the rewrite. Empty = no hint.</div></div>
+          <input data-k="hotkey.topic" maxlength="200" placeholder="e.g. ZFS storage administration">
+        </div>
         <datalist id="hotkey-langs">
           __HKLANG_OPTIONS__
         </datalist>

@@ -57,6 +57,9 @@ class HotkeyConfig:
     mode: str = "hold-to-record"
     input_mode: str = "refine"
     lang: str = "zh"
+    # Optional domain hint prepended to LLM refine / translate system message.
+    # Empty string preserves the original prompt byte-for-byte.
+    topic: str = ""
 
 
 @dataclass

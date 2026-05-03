@@ -19,6 +19,7 @@ async def _voice_session(
     lang: str,
     audio_source,
     streaming: bool = True,
+    topic: str = "",
 ) -> None:
     """Run a voice session.
 
@@ -52,9 +53,12 @@ async def _voice_session(
         await ws.send(json.dumps({"type": "end"}))
 
     async with websockets.connect(url) as ws:
-        await ws.send(json.dumps({
+        start_frame = {
             "type": "start", "mode": mode, "lang": lang, "streaming": streaming,
-        }))
+        }
+        if topic:
+            start_frame["topic"] = topic
+        await ws.send(json.dumps(start_frame))
 
         send_task = asyncio.create_task(_send_loop(ws))
 

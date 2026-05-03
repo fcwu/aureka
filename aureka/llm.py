@@ -147,8 +147,21 @@ def _strip_think_blocks(s: str) -> str:
     return s.strip()
 
 
+def _topic_prefix(topic: str) -> str:
+    """Domain-hint prefix added to the LLM system message when topic is non-empty.
+
+    Returns "" when topic is empty so the resulting prompt is byte-identical to
+    the pre-topic version (regression-safe)."""
+    if not topic:
+        return ""
+    return (
+        f"使用者目前在處理「{topic}」相關的內容。"
+        f"請依該領域慣例選用術語：專業名詞保留原文、不要為了通順而改寫專業術語。\n"
+    )
+
+
 async def llm_refine_stream(
-    transcript: str, mode: str = "refine", lang: str = "zh"
+    transcript: str, mode: str = "refine", lang: str = "zh", topic: str = ""
 ) -> AsyncGenerator[str, None]:
     """Async generator yielding refined/translated text tokens."""
     cfg = get_config()
@@ -162,6 +175,7 @@ async def llm_refine_stream(
         system = _TRANSLATE_SYSTEM.format(lang=lang_name)
     else:
         system = _REFINE_SYSTEM
+    system = _topic_prefix(topic) + system
 
     chat_kwargs: dict = {}
     if cfg.llm.thinking_budget is not None:

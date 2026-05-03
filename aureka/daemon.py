@@ -221,6 +221,7 @@ async def voice_input(ws: WebSocket):
         config_msg = await ws.receive_json()
         mode = config_msg.get("mode", "transcribe")
         lang = config_msg.get("lang", "zh")
+        topic = config_msg.get("topic", "") or ""
         streaming = bool(config_msg.get("streaming", False)) and _check_vad()
 
         if streaming:
@@ -238,7 +239,7 @@ async def voice_input(ws: WebSocket):
             accumulated = ""
             llm_failed = False
             try:
-                async for token in llm_refine_stream(transcript, mode=mode, lang=lang):
+                async for token in llm_refine_stream(transcript, mode=mode, lang=lang, topic=topic):
                     accumulated += token
                     await ws.send_json({"type": "refined", "text": accumulated, "final": False})
             except Exception as e:
