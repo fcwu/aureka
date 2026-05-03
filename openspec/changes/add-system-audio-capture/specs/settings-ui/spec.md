@@ -1,3 +1,7 @@
+## Overview
+
+This delta adds a Listen tab to the Settings UI so users pick the loopback device, verify routing visually with a Test capture button (5-second RMS + waveform), and configure default modes / sinks for `aureka listen`. The waveform check is the user-facing answer to "did I plug things together correctly?" — a no-CLI alternative to `aureka doctor audio`.
+
 ## ADDED Requirements
 
 ### Requirement: Listen 分頁

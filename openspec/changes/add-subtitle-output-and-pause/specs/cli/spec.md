@@ -1,3 +1,7 @@
+## Overview
+
+This delta plumbs the new format and pause behaviors through the CLI: `--format` for batch subtitle output, and `[hotkey].pause` honored by `aureka type` and `aureka listen`. From a user's perspective: one config knob covers pause across every live-capture surface, and one flag controls subtitle output without breaking existing scripts that don't pass it.
+
 ## ADDED Requirements
 
 ### Requirement: process 子命令 --format 旗標

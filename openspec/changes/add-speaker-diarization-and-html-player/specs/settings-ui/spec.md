@@ -1,3 +1,7 @@
+## Overview
+
+This delta surfaces the resemblyzer voice-encoder weights in the Settings UI Models tab so users pre-download or check status from the GUI — same UX as Kokoro and faster-whisper. Users who have not installed `[diarize]` see no extra row (no false advertising); installing the extra makes the row appear automatically next time the window is opened.
+
 ## ADDED Requirements
 
 ### Requirement: Models 分頁顯示 resemblyzer

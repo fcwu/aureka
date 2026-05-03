@@ -1,3 +1,7 @@
+## Overview
+
+This new capability defines the **pywebview-based Settings window** — the user-facing UI that maps every `config.toml` field to a labeled, helper-text-equipped form, hot-reloads daemon state on save, and houses the model-download / benchmark / hotkey-capture / port-probe utilities. Users no longer need to hand-edit TOML or remember Kokoro voice IDs / Whisper sizes / pynput key strings; the window guides them through every choice with dropdowns and inline guidance, autosaves on field commit, and surfaces real-time benchmark recommendations one click away from being applied.
+
 ## ADDED Requirements
 
 ### Requirement: 設定視窗框架

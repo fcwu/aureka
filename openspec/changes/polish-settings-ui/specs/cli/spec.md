@@ -1,3 +1,7 @@
+## Overview
+
+This delta pins the `aureka ui`, `aureka tray`, and `aureka autostart` subcommand contracts so login launches **tray** (which auto-starts the daemon), and `Settings…` from the tray opens the same pywebview window. One entry point, one mental model: open the Aureka tray, click Settings, edit, done. No more "did I start the daemon?" / "where's the config file?" friction for new users.
+
 ## ADDED Requirements
 
 ### Requirement: ui 子命令

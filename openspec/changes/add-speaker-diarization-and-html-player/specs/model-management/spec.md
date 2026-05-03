@@ -1,3 +1,7 @@
+## Overview
+
+This delta registers the resemblyzer voice-encoder weights so the Settings UI Models tab and `aureka download` can pre-fetch them and report status — the same UX users already get for Kokoro and faster-whisper. Users who don't install `[diarize]` see no extra entry; users who do see a third row that downloads / re-downloads on demand instead of stalling on first `--diarize` run.
+
 ## ADDED Requirements
 
 ### Requirement: Resemblyzer 權重納入 registry

@@ -1,3 +1,7 @@
+## Overview
+
+This delta exposes a `model_status()` query and a download-progress callback so the Settings UI Models tab can show whether each model is **downloaded without triggering downloads**, and stream byte-level progress when the user does request one. Users get the cached "✓ Downloaded · 1.5 GB" badge next to each model on tab open, and a real progress bar during a fetch — the user-visible "did this work?" answer for ASR/TTS that previously required reading the daemon log.
+
 ## ADDED Requirements
 
 ### Requirement: 模型下載狀態查詢

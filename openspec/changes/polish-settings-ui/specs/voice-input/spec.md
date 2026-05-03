@@ -1,3 +1,7 @@
+## Overview
+
+This delta brings the tray icon up to platform convention — monochrome template image on macOS so it auto-tints in light/dark menu bar, accent-blue glyph on Windows — and pins a hard requirement that any tray entry point auto-starts the daemon when none is running. Result: login → tray icon appears matching the OS look-and-feel → daemon spawns silently → hotkey works immediately. Users no longer see a brightly-colored blue blob clashing with their dark menu bar, and they no longer have to remember to run `aureka daemon start` separately.
+
 ## ADDED Requirements
 
 ### Requirement: Tray icon 平台慣例

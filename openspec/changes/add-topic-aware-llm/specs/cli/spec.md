@@ -1,3 +1,7 @@
+## Overview
+
+This delta gives `aureka type` a one-shot `--topic STRING` flag so users can pin a domain hint for a single voice-input session without editing `config.toml`. Useful for the "I just need this one meeting transcribed in compliance jargon" cases — the flag wins over the config value, and nothing is persisted.
+
 ## ADDED Requirements
 
 ### Requirement: type 子命令 --topic 旗標

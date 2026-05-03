@@ -1,3 +1,7 @@
+## Overview
+
+This delta adds two subcommands so users can transcribe system audio from the terminal: `aureka listen` is the day-to-day "transcribe what I'm hearing" tool, and `aureka doctor audio` is the routing diagnostic users run when their setup isn't working (e.g. macOS Multi-Output device misconfigured). The pair targets first-time users who hit BlackHole / WASAPI quirks and need a clear "is my plumbing OK?" answer before opening the main listen mode.
+
 ## ADDED Requirements
 
 ### Requirement: listen 子命令

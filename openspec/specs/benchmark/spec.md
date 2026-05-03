@@ -1,7 +1,9 @@
 # benchmark Specification
 
 ## Purpose
-TBD - created by archiving change add-benchmark-command. Update Purpose after archive.
+
+量測 Aureka 在當前硬體上的 ASR / TTS / LLM 端到端速度，產出可分享的 Markdown 報告與供 UI 消費的結構化結果，協助使用者在升級模型前先估算 cold-start 時間、單次推論延遲、tokens/s 與 RTF。設定 UI Tools 分頁依據結果產出具體的調整建議（例：device、ASR model size、thinking_budget），讓使用者一鍵套用而不必自行解讀數字。
+
 ## Requirements
 ### Requirement: Benchmark Entry 函數
 系統 SHALL 在 `aureka/benchmark.py` 提供 `run_benchmark(device: str = "auto", quick: bool = False, output_path: str | None = None, skip_llm: bool = False) -> Path` 函數，作為 benchmark 的程式介面，回傳寫出的 Markdown 報告路徑。

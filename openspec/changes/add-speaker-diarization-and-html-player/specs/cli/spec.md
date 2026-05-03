@@ -1,3 +1,7 @@
+## Overview
+
+This delta adds three opt-in flags to `aureka process` so users dial in diarization without breaking existing scripts: `--diarize` enables it, `--num-speakers N` overrides auto-detection (useful when the user knows there are exactly 3 panelists), and `--no-speaker-labels` keeps the colored HTML view but strips text-format prefixes for users producing clean translation tracks.
+
 ## ADDED Requirements
 
 ### Requirement: process 子命令 --diarize / --num-speakers / --no-speaker-labels

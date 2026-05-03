@@ -1,3 +1,7 @@
+## Overview
+
+This delta makes `run_benchmark` return a **structured dict** alongside the existing Markdown report, and accept a per-line progress callback. The Settings UI Tools tab uses both: streams stdout into a `<pre>` log as the benchmark runs, then renders concrete tuning recommendations (drop ASR size, disable thinking, switch device) the user can Apply with one click. Users move from "I have a benchmark report somewhere on disk" to "the UI showed me what to change and I clicked Apply".
+
 ## ADDED Requirements
 
 ### Requirement: Benchmark 結構化結果回傳

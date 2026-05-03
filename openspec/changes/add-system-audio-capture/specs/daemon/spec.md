@@ -1,3 +1,7 @@
+## Overview
+
+This delta gives the daemon a long-lived `/listen` WebSocket endpoint so the listen client can stream system audio for as long as the user keeps it open — different lifetime semantics than the short-lived `/voice` sessions. Users get the same daemon speed-up they enjoy for `aureka type` (no per-session ASR/LLM cold start) but for hour-long meetings or lectures.
+
 ## ADDED Requirements
 
 ### Requirement: WebSocket /listen 端點

@@ -1,3 +1,7 @@
+## Overview
+
+This delta extends voice-input refine / translate so users can pin a **domain hint** that nudges the LLM toward correct jargon. Set `[hotkey].topic = "ZFS storage"` once and refined transcripts in that workflow stop garbling "ZFS pool", "vdev", and "RAIDZ"; switch to a financial workflow with `--topic "M&A due diligence"` and the same engine respects deal-room vocabulary instead. The change is opt-in: empty topic preserves today's prompt verbatim.
+
 ## ADDED Requirements
 
 ### Requirement: Topic 感知 LLM Prompt

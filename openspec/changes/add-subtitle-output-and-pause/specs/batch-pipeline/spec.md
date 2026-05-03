@@ -1,3 +1,7 @@
+## Overview
+
+This delta makes `aureka process` emit **SRT and WebVTT subtitle files** alongside the existing Markdown so video editors (DaVinci Resolve, Premiere) and accessibility tooling can drop the output straight in without a conversion step. Users opt in via `--format` and may request multiple formats from a single run, paying ASR cost only once.
+
 ## ADDED Requirements
 
 ### Requirement: SRT 字幕輸出

@@ -1,3 +1,7 @@
+## Overview
+
+This new capability **labels who said what** in multi-speaker recordings — interviews, group meetings, podcasts — fully offline, with no HuggingFace token, no cloud, no account. It uses resemblyzer voice embeddings + spectralcluster, so users with a recording of a 4-person meeting get a transcript where each segment is tagged `S1` / `S2` / `S3` / `S4` consistently, ready for color-coded review or quote attribution.
+
 ## ADDED Requirements
 
 ### Requirement: 離線講者辨識管線

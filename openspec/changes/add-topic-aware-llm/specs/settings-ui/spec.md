@@ -1,3 +1,7 @@
+## Overview
+
+This delta surfaces the topic hint as a first-class field in the Settings UI Hotkey tab — the same value users could otherwise pass via `--topic` becomes a clicky, persistent control. Set it once, auto-save persists, daemon hot-reloads, every subsequent refine / translate inherits the domain hint.
+
 ## ADDED Requirements
 
 ### Requirement: Hotkey 分頁 Topic 欄位

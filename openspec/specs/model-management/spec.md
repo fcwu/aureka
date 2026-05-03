@@ -1,7 +1,9 @@
 # model-management Specification
 
 ## Purpose
-TBD - created by archiving change add-model-download-command. Update Purpose after archive.
+
+集中管理 Aureka 執行所需的本機 AI 模型（Kokoro TTS、faster-whisper ASR，未來可擴充 resemblyzer 等），提供下載 / 狀態查詢 / 進度回呼介面，讓使用者透過 `aureka download` CLI 或設定 UI Models 分頁預先抓齊權重，避免首次 `aureka type` / `aureka speak` 在背景下載大檔案造成「卡住」的錯覺。
+
 ## Requirements
 ### Requirement: 模型 Registry
 系統 SHALL 在 `aureka/models.py` 提供 `model_registry() -> dict[str, str]` 函數作為所有可下載模型的 single source of truth，key 為邏輯名稱、value 為 HuggingFace repo ID；faster-whisper 的 repo_id 依當前 `cfg.asr.model` 動態決定。

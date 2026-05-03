@@ -1,3 +1,7 @@
+## Overview
+
+This new capability lets users **transcribe whatever the system is playing** — Zoom calls, Teams meetings, YouTube, podcasts, recorded lectures — without changing how voice input works. It abstracts the platform-specific differences (BlackHole on macOS, WASAPI Loopback on Windows, PulseAudio monitor on Linux) behind a single `LoopbackStream` that feeds the existing ASR pipeline. The user benefit: any audio coming out of the speakers becomes searchable, refinable, translatable text — same as if they had said it into the mic.
+
 ## ADDED Requirements
 
 ### Requirement: 跨平台 Loopback 擷取介面

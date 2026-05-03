@@ -1,3 +1,7 @@
+## Overview
+
+This delta plumbs speaker labels through every existing writer (Markdown / SRT / VTT) and adds a **self-contained interactive HTML transcript** with embedded audio, canvas waveform, and click-to-seek navigation. The HTML output turns a flat batch transcript into a usable review tool: the user clicks any segment to play it back, clicks the waveform to jump to a moment, and watches the active segment auto-highlight as audio plays — all without an internet connection or external player.
+
 ## ADDED Requirements
 
 ### Requirement: 講者標籤帶入輸出

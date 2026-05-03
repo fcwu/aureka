@@ -1,3 +1,7 @@
+## Overview
+
+This delta adds a configurable **pause / resume hotkey** so users can step away mid-recording — answer the door, take a sip of water, sneeze — without ending the session. LLM context (refine / translate state) is preserved across the gap, so on resume the user picks up exactly where they left off instead of starting a new context window.
+
 ## ADDED Requirements
 
 ### Requirement: Pause/Resume 熱鍵
