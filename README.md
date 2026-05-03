@@ -310,7 +310,10 @@ Daemon log：`/tmp/aureka-daemon.log`
 aureka type            # 預設 refine 模式
 aureka type --mode transcribe   # 直接轉錄，不過 LLM
 aureka type --mode translate --lang en   # 說中文，輸出英文
+aureka type --topic "ZFS storage administration"   # 給 LLM 領域 hint，避免 jargon 被改錯
 ```
+
+`--topic` 把一段短描述塞進 LLM refine / translate 的 prompt，引導模型用對的詞彙（例如「QNAP firmware」「醫療術語」「程式設計」）。空字串時 prompt 與舊版完全一致。也可以在 `[hotkey] topic = "..."` 設預設、CLI flag override。
 
 或啟動系統托盤 client（有 GUI 圖示，可右鍵切換模式）：
 
@@ -325,9 +328,11 @@ aureka tray
 ```toml
 [hotkey]
 trigger    = "<ctrl>+<alt>+space"
+pause      = "<ctrl>+<alt>+p"   # 錄音中按一下「暫停」，再按「繼續」
 mode       = "hold-to-record"   # hold-to-record / toggle / vad
 input_mode = "refine"           # transcribe / refine / translate
 lang       = "zh"
+topic      = ""                 # 領域 hint（給 LLM refine/translate prompt）
 ```
 
 | 模式             | 說明                           |
@@ -335,6 +340,8 @@ lang       = "zh"
 | `hold-to-record` | 按住熱鍵錄音，放開停止（預設） |
 | `toggle`         | 按一下開始，再按停止           |
 | `vad`            | 偵測靜音自動停止               |
+
+**Pause 熱鍵**（`pause` 欄位）：錄音中（`aureka type` 或 `aureka listen`）按一下暫停、再按一下繼續——音訊靜悄悄被丟掉，但 LLM session 保留，講話的人短暫離席不必砍掉重來。Tray 選單也有「Pause capture」可勾。
 
 ### AI 後處理模式
 
