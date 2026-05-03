@@ -45,6 +45,7 @@
 - [診斷（`aureka doctor`）](#診斷aureka-doctor)
 - [平台支援](#平台支援)
 - [環境變數](#環境變數)
+- [Contributing](#contributing)
 - [License](#license)
 
 <!-- /code_chunk_output -->
@@ -428,6 +429,10 @@ aureka doctor audio
 | `AUREKA_TEST_MODE`         | 設 `1` 跳過模型載入（測試加速）                | —                      |
 | `AUREKA_LOG_LEVEL`         | `debug` / `info` / `warning`                   | `info`                 |
 | `HF_HOME` / `HF_HUB_CACHE` | HuggingFace cache 路徑（aureka download 會吃） | `~/.cache/huggingface` |
+
+## Contributing
+
+開發、測試、debug 流程見 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
 ## License
 
