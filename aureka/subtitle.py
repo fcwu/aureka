@@ -71,8 +71,8 @@ def write_vtt(segments: Iterable[Segment], path: str | Path) -> Path:
     return path
 
 
-# Format set parser: "md,srt,all" → set
-ALL_FORMATS = {"md", "srt", "vtt"}
+# Format set parser: "md,srt,html,all" → set
+ALL_FORMATS = {"md", "srt", "vtt", "html"}
 
 
 def parse_formats(spec: str) -> set[str]:

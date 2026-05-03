@@ -14,14 +14,24 @@ def model_registry() -> dict[str, str]:
     """Return mapping of logical model names to HuggingFace repo IDs.
 
     faster-whisper's repo follows `cfg.asr.model` so changing the config
-    automatically targets the matching model on download.
-    """
+    automatically targets the matching model on download. The
+    `resemblyzer` voice-encoder entry only appears when the [diarize]
+    extra is installed — checking via lazy import so we don't suggest a
+    download the user has no use for."""
     from aureka.config import get_config
     cfg = get_config()
-    return {
+    out = {
         "kokoro": "hexgrad/Kokoro-82M",
         "faster-whisper": f"Systran/faster-whisper-{cfg.asr.model}",
     }
+    try:
+        import resemblyzer  # noqa: F401
+        # resemblyzer ships its weights with the package; we still register
+        # the entry so the Models tab can reflect "available" state.
+        out["resemblyzer"] = "resemble-ai/resemblyzer"
+    except ImportError:
+        pass
+    return out
 
 
 def _select_models() -> list[str]:

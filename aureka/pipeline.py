@@ -16,6 +16,9 @@ def run_pipeline(
     output_dir: str | Path = "output",
     check_vlm: bool = True,
     formats: set[str] | None = None,
+    diarize: bool = False,
+    num_speakers: int | None = None,
+    speaker_labels_in_text: bool = True,
 ) -> Path:
     input_path = Path(input_path)
     if input_path.suffix.lower() not in ffmpeg_utils.SUPPORTED_FORMATS:
@@ -69,13 +72,33 @@ def run_pipeline(
         out_path = formatter.output_path(input_path, output_dir)
         formats = formats or {"md"}
 
+        speaker_labels: list[str] | None = None
+        if diarize:
+            print(f"[diarize] running speaker diarization "
+                  f"(num_speakers={num_speakers or 'auto'}) ...", flush=True)
+            from aureka import diarize as diarize_mod
+            speaker_labels = diarize_mod.diarize(
+                str(audio_path),
+                [(s.start, s.end, s.text) for s in segments],
+                num_speakers=num_speakers,
+            )
+            print(f"[diarize] detected {len(set(speaker_labels))} speakers", flush=True)
+
+        # Build (t0, t1, text, speaker?) tuples used by SRT/VTT/HTML.
+        rich_tuples = [
+            (s.start, s.end,
+             (f"[{speaker_labels[i]}] " if (speaker_labels and speaker_labels_in_text) else "") + s.text,
+             speaker_labels[i] if speaker_labels else None)
+            for i, s in enumerate(segments)
+        ]
+
         if "md" in formats:
             content = formatter.format_output(segments, frame_descriptions, summary, input_path, duration)
             out_path.write_text(content, encoding="utf-8")
             print(f"Output: {out_path}")
         if "srt" in formats or "vtt" in formats:
             from aureka import subtitle
-            seg_tuples = [(s.start, s.end, s.text) for s in segments]
+            seg_tuples = [(t0, t1, text) for t0, t1, text, _ in rich_tuples]
             if "srt" in formats:
                 srt_path = out_path.with_suffix(".srt")
                 subtitle.write_srt(seg_tuples, srt_path)
@@ -84,5 +107,18 @@ def run_pipeline(
                 vtt_path = out_path.with_suffix(".vtt")
                 subtitle.write_vtt(seg_tuples, vtt_path)
                 print(f"Output: {vtt_path}")
+        if "html" in formats:
+            from aureka import html_transcript
+            html_path = out_path.with_suffix(".html")
+            audio_rel = Path(audio_path).name
+            try:
+                peaks = html_transcript.compute_peaks(audio_path)
+            except SystemExit:
+                peaks = []
+            html_transcript.write_html(
+                rich_tuples, audio_relpath=audio_rel, out_path=html_path,
+                peaks=peaks, title=Path(input_path).stem,
+            )
+            print(f"Output: {html_path}")
 
     return out_path

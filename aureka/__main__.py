@@ -46,6 +46,9 @@ def cmd_process(args):
         frame_interval=args.frame_interval,
         output_dir=args.output_dir,
         formats=formats,
+        diarize=args.diarize,
+        num_speakers=args.num_speakers,
+        speaker_labels_in_text=not args.no_speaker_labels,
     )
 
 
@@ -376,7 +379,13 @@ def main():
     p_proc.add_argument("--frame-interval", type=int, default=30, metavar="SECS")
     p_proc.add_argument("--output-dir", default="output", metavar="DIR")
     p_proc.add_argument("--format", default="md", metavar="SPEC",
-                        help="Output formats: md, srt, vtt, all, or comma list (e.g. md,srt). Default: md")
+                        help="Output formats: md, srt, vtt, html, all, or comma list. Default: md")
+    p_proc.add_argument("--diarize", action="store_true",
+                        help="Run speaker diarization (requires [diarize] extra)")
+    p_proc.add_argument("--num-speakers", type=int, default=None, metavar="N",
+                        help="Pin speaker count instead of auto-detect (use with --diarize)")
+    p_proc.add_argument("--no-speaker-labels", action="store_true",
+                        help="Skip [Sn] text prefixes in md/srt/vtt; HTML keeps colors")
 
     # speak
     p_speak = sub.add_parser("speak", help="TTS read-aloud")

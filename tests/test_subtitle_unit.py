@@ -80,7 +80,8 @@ def test_parse_formats_default_md():
 
 def test_parse_formats_all_expands():
     from aureka.subtitle import parse_formats
-    assert parse_formats("all") == {"md", "srt", "vtt"}
+    # 'all' covers every supported writer including HTML (added with diarization)
+    assert parse_formats("all") == {"md", "srt", "vtt", "html"}
 
 
 def test_parse_formats_comma_list():
@@ -142,11 +143,11 @@ def test_pipeline_default_format_md_only(tmp_path, monkeypatch):
     assert captured == []  # neither srt nor vtt invoked
 
 
-def test_pipeline_format_all_invokes_three_writers(tmp_path):
-    """`all` set triggers each writer once."""
+def test_pipeline_format_all_invokes_writers(tmp_path):
+    """`all` set triggers every writer once."""
     from aureka.subtitle import parse_formats, write_srt, write_vtt
     formats = parse_formats("all")
-    assert formats == {"md", "srt", "vtt"}
+    assert {"md", "srt", "vtt", "html"} <= formats
     write_srt([(0.0, 1.0, "x")], tmp_path / "out.srt")
     write_vtt([(0.0, 1.0, "x")], tmp_path / "out.vtt")
     assert (tmp_path / "out.srt").exists()
