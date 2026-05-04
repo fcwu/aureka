@@ -138,12 +138,22 @@ def _resolve_sample(voice: str) -> Path:
         sf.write(cache_file, audio, sr)
         return cache_file
     except Exception as e:
-        # fallback to repo fixture
+        # fallback 1: repo fixture (dev environment)
         fallback = Path(__file__).parent.parent / "tests" / "fixtures" / "speech-zh.wav"
         if fallback.exists():
             print(f"[sample] Kokoro unavailable ({e}), using fallback {fallback}", flush=True)
             return fallback
-        raise RuntimeError(f"Cannot obtain ASR sample: {e}") from e
+        # fallback 2: synthetic noise (e.g. Windows without TTS)
+        synthetic = CACHE_DIR / "sample-synthetic-30s.wav"
+        if not synthetic.exists():
+            print(f"[sample] Kokoro unavailable ({e}), generating synthetic 30s audio...", flush=True)
+            import numpy as np
+            import soundfile as sf
+            _sr = 16000
+            rng = np.random.default_rng(42)
+            _audio = rng.uniform(-0.05, 0.05, _sr * 30).astype(np.float32)
+            sf.write(synthetic, _audio, _sr)
+        return synthetic
 
 
 # ── Per-task benchmarks ──────────────────────────────────────────────────────
