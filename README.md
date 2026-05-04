@@ -59,19 +59,25 @@
 pip install aureka
 
 # 按需加裝功能模組
-pip install "aureka[asr]"           # ASR（faster-whisper）
-pip install "aureka[tts]"           # TTS（Kokoro）— 僅 Linux / macOS
+pip install "aureka[asr]"           # ASR（faster-whisper + silero-vad）
+pip install "aureka[tts]"           # TTS（Kokoro）— 需 Python <3.13，不支援 Windows
 pip install "aureka[batch]"         # 批次流水線（需另裝 ffmpeg，見下方）
-pip install "aureka[voice]"         # 語音輸入 client（pynput/pystray）
+pip install "aureka[voice]"         # 語音輸入 client（錄音 / hotkey / tray）
+pip install "aureka[ui]"            # 設定視窗（pywebview）
+pip install "aureka[listen]"        # 系統音訊擷取（loopback）
+pip install "aureka[diarize]"       # 說話人辨識（resemblyzer）
 pip install "aureka[all]"           # 以上全部（Windows 請用下方指令）
 ```
 
 > **注意**：PyTorch 需依平台單獨安裝（見下方），不包含在 extras 中。
 
-**Windows 用戶**：Kokoro TTS 目前無 Windows wheel，請跳過 `[tts]`：
+**Windows 用戶**：Kokoro TTS 的 wheel 目前不支援 Windows，請跳過 `[tts]`。`[diarize]` 在 Windows 上會自動改用預編譯的 `webrtcvad-wheels`，不需手動處理：
 
 ```powershell
-pip install "aureka[asr,batch,voice,ui]"
+pip install "aureka[asr,batch,voice,ui,listen]"
+
+# 若需要說話人辨識
+pip install "aureka[asr,batch,voice,ui,listen,diarize]"
 ```
 
 ### 從原始碼安裝
@@ -85,7 +91,7 @@ pip install -r requirements-dev.txt   # 測試用
 
 ### Python 版本
 
-需要 Python **3.11 或 3.13**（推薦）。Python 3.14+ 目前許多 ML 套件尚未支援，請勿使用。
+需要 Python **3.11 – 3.13**（推薦 **3.12**）。Python 3.14+ 目前許多 ML 套件尚未支援，請勿使用。TTS（Kokoro）需要 Python **<3.13**，若要使用 TTS 請選 3.11 或 3.12。
 
 ### PyTorch（依平台）
 
@@ -414,12 +420,14 @@ aureka doctor audio
 
 ## 平台支援
 
-| 平台          | 語音輸入 | 批次處理 | ASR 加速              | TTS 加速      |
-| ------------- | -------- | -------- | --------------------- | ------------- |
-| NVIDIA Linux  | ✅       | ✅       | CUDA (faster-whisper) | CUDA (Kokoro) |
-| AMD Linux     | ✅       | ✅       | ROCm (faster-whisper) | ROCm (Kokoro) |
-| Apple Silicon | ✅       | ✅       | CPU (faster-whisper)  | MPS (Kokoro)  |
-| CPU only      | ✅       | ✅       | CPU (faster-whisper)  | CPU (Kokoro)  |
+| 平台                     | 語音輸入 | 批次處理 | ASR 加速              | TTS 加速           |
+| ------------------------ | -------- | -------- | --------------------- | ------------------ |
+| Windows NVIDIA（Python 3.12）| ✅   | ✅       | CUDA (faster-whisper) | ❌ 不支援          |
+| Windows CPU（Python 3.12）   | ✅   | ✅       | CPU (faster-whisper)  | ❌ 不支援          |
+| NVIDIA Linux             | ✅       | ✅       | CUDA (faster-whisper) | CUDA (Kokoro)      |
+| AMD Linux                | ✅       | ✅       | ROCm (faster-whisper) | ROCm (Kokoro)      |
+| Apple Silicon            | ✅       | ✅       | CPU (faster-whisper)  | MPS (Kokoro)       |
+| CPU only                 | ✅       | ✅       | CPU (faster-whisper)  | CPU (Kokoro)       |
 
 ## 環境變數
 
