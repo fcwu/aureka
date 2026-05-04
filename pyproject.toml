@@ -44,7 +44,6 @@ asr = [
 tts = [
     "kokoro>=0.9.0",
     "misaki[zh,en]>=0.9.0",
-    "sounddevice>=0.4.6",
 ]
 
 # Batch pipeline (requires system ffmpeg)
@@ -55,6 +54,7 @@ batch = [
 
 # Voice input client (Linux X11 / macOS / Windows)
 voice = [
+    "sounddevice>=0.4.6",
     "pynput>=1.7.0",
     "pystray>=0.19.0",
     "pyperclip>=1.8.0",
@@ -74,6 +74,7 @@ listen = [
 
 # Speaker diarization for `aureka process --diarize`
 diarize = [
+    "webrtcvad-wheels; sys_platform == 'win32'",
     "resemblyzer>=0.1",
     "spectralcluster>=0.2",
     "librosa>=0.10",

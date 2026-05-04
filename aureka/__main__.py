@@ -186,6 +186,7 @@ def cmd_type(args):
         audio = audio_data.astype(np.float32) / 32768.0
         segments = asr.transcribe(audio, 16000)
         transcript = " ".join(s.text for s in segments)
+        print(f"[aureka] Transcript: {transcript}")
         if mode in ("refine", "translate"):
             import asyncio as aio
 
@@ -196,6 +197,7 @@ def cmd_type(args):
                 return result
 
             text = aio.run(_collect())
+            print(f"[aureka] Refined: {text}")
         else:
             text = transcript
         injector.inject_text(text)
